@@ -286,13 +286,13 @@ def ask_witness(witness_id: str, question: str) -> tuple[str, str]:
 
 def submit_witness_question(witness_id: str, clean_question: str, *, use_ai: bool = True) -> None:
     if use_ai:
-        reply, status = ask_witness(witness_id, clean_question)
+        reply, _ = ask_witness(witness_id, clean_question)
     else:
-        reply, status = fallback_witness_reply(witness_id, clean_question), "scripted"
+        reply = fallback_witness_reply(witness_id, clean_question)
     game["chat_history"][witness_id].extend(
         [
             {"role": "user", "text": clean_question},
-            {"role": "assistant", "text": reply, "fallback": status != "ok"},
+            {"role": "assistant", "text": reply},
         ]
     )
     st.rerun()
@@ -441,8 +441,6 @@ elif page == "詢問證人":
                 avatar_to_use = witness_avatar if message["role"] == "assistant" else "🧑‍⚖️"
                 with st.chat_message(message["role"], avatar=avatar_to_use):
                     st.write(message["text"])
-                    if message.get("fallback"):
-                        st.caption("（固定回覆）")
 
         with st.form("witness_question", clear_on_submit=True):
             question = st.text_input(
