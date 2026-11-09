@@ -230,11 +230,14 @@ def fallback_witness_reply(witness_id: str, question: str) -> str:
     """依問題主題挑選備援台詞；與本案無關就回「無關」類台詞，並避免連續重複同一句。"""
     q = question.lower()
     pools = FALLBACK_REPLIES[witness_id]
+    # 選命中關鍵字最多的主題，避免「清潔車」這類順帶提到的詞搶走真正的問題重點
     candidates = None
+    best_hits = 0
     for topic in pools["topics"]:
-        if any(word in q for word in topic["keywords"]):
+        hits = sum(word in q for word in topic["keywords"])
+        if hits > best_hits:
+            best_hits = hits
             candidates = topic["replies"]
-            break
     if candidates is None:
         is_relevant = any(word in q for word in CASE_KEYWORDS)
         candidates = pools["default"] if is_relevant else pools["irrelevant"]
