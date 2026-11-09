@@ -62,6 +62,8 @@ def generate_text(
         text = (interaction.output_text or "").strip()[:600]
         if not text:
             return None, "empty", True
+        if not any("\u4e00" <= character <= "\u9fff" for character in text):
+            return None, "invalid_language", True
         return text, "ok", True
     except Exception:
         return None, "unavailable", True
