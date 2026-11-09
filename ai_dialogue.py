@@ -7,7 +7,7 @@ from datetime import date
 import streamlit as st
 from google import genai
 
-MODEL_NAME = "gemini-3.5-flash"
+MODEL_NAME = "gemini-3.5-flash-lite"
 MAX_AI_CALLS_PER_SESSION = 8
 MAX_AI_CALLS_PER_PROCESS_PER_DAY = 100
 
@@ -56,7 +56,7 @@ def generate_text(
             model=MODEL_NAME,
             input=prompt,
             system_instruction=system_instruction,
-            generation_config={"temperature": 0.7, "max_output_tokens": 180},
+            generation_config={"thinking_level": "minimal", "max_output_tokens": 80},
             timeout=20,
         )
         text = (interaction.output_text or "").strip()[:600]
