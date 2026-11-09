@@ -182,7 +182,7 @@ with st.sidebar:
     st.divider()
     if api_enabled:
         st.success(f"🤖 Gemini 對話已啟用 · {MODEL_NAME}")
-        st.caption(f"每局最多 {MAX_AI_CALLS_PER_SESSION} 次 AI 呼叫（已用 {game['ai_calls']} 次）")
+        st.caption(f"自由提問每局最多 {MAX_AI_CALLS_PER_SESSION} 次 AI 呼叫（已用 {game['ai_calls']} 次）")
     else:
         st.info("💡 目前使用固定備援台詞；不需要 API Key 也能完整破案。")
     if st.button("🔄 重新開始本局", use_container_width=True):
@@ -284,8 +284,11 @@ def ask_witness(witness_id: str, question: str) -> tuple[str, str]:
     return fallback_witness_reply(witness_id, question), status
 
 
-def submit_witness_question(witness_id: str, clean_question: str) -> None:
-    reply, status = ask_witness(witness_id, clean_question)
+def submit_witness_question(witness_id: str, clean_question: str, *, use_ai: bool = True) -> None:
+    if use_ai:
+        reply, status = ask_witness(witness_id, clean_question)
+    else:
+        reply, status = fallback_witness_reply(witness_id, clean_question), "scripted"
     game["chat_history"][witness_id].extend(
         [
             {"role": "user", "text": clean_question},
@@ -418,14 +421,14 @@ elif page == "詢問證人":
 
     with chat_col:
         with st.container(border=True):
-            st.markdown("##### ⚡ 快捷追問（點擊直接發問）")
+            st.markdown("##### ⚡ 快捷追問（固定回覆，不消耗 AI 額度）")
             locked_count = 0
             for q_idx, (sample_q, required_ev) in enumerate(witness["sample_questions"]):
                 if required_ev and required_ev not in game["viewed_evidence"]:
                     locked_count += 1
                     continue
                 if st.button(sample_q, key=f"sample_q_{witness_id}_{q_idx}", use_container_width=True):
-                    submit_witness_question(witness_id, sample_q)
+                    submit_witness_question(witness_id, sample_q, use_ai=False)
             if locked_count:
                 st.caption(f"🔒 還有 {locked_count} 個追問，閱讀相關證物後解鎖。")
 
@@ -439,7 +442,7 @@ elif page == "詢問證人":
                 with st.chat_message(message["role"], avatar=avatar_to_use):
                     st.write(message["text"])
                     if message.get("fallback"):
-                        st.caption("（固定備援台詞）")
+                        st.caption("（固定回覆）")
 
         with st.form("witness_question", clear_on_submit=True):
             question = st.text_input(
@@ -453,7 +456,7 @@ elif page == "詢問證人":
             if clean_question:
                 submit_witness_question(witness_id, clean_question)
 
-        st.caption("🔒 若啟用 Gemini，問題會傳送至 Google API；請勿輸入真實姓名或個人資料。")
+        st.caption("🔒 只有自由輸入的問題會傳送至 Google API；請勿輸入真實姓名或個人資料。")
 
 elif page == "證據攻防":
     court_img = resolve_asset(SCENE_IMAGES["courtroom"])
@@ -540,29 +543,10 @@ elif page == "證據攻防":
             challenge = CORRECT_CHALLENGES.get(pair)
             if challenge and challenge["clue_id"] not in game["found_clues"]:
                 game["found_clues"].append(challenge["clue_id"])
-                statement = STATEMENTS[statement_id]
-                witness = WITNESSES[statement["witness_id"]]
-                system_instruction = (
-                    f"你扮演法庭上的{witness['role']}。用繁體中文寫一到兩句克制的即時反應。"
-                    "只回應法官確認這項證詞與證物有矛盾，不可新增案件事實、證據、動機或結局；不可替 Python 判定遊戲結果。"
-                )
-                prompt = (
-                    f"證人：{witness['name']}。\n"
-                    f"公開證詞：{statement['text']}\n"
-                    f"法庭上剛確認的矛盾：{challenge['summary']}"
-                )
-                reply, status, attempted = generate_text(
-                    system_instruction=system_instruction,
-                    prompt=prompt,
-                    session_call_count=game["ai_calls"],
-                )
-                if attempted:
-                    game["ai_calls"] += 1
                 game["last_court_result"] = {
                     "success": True,
                     "summary": challenge["summary"],
-                    "text": reply or challenge["fallback_reaction"],
-                    "ai": status == "ok",
+                    "text": challenge["fallback_reaction"],
                 }
             elif challenge:
                 game["last_court_result"] = {

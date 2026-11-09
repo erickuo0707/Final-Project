@@ -29,7 +29,7 @@
 ## 預定技術
 
 - Python 與 Streamlit：遊戲介面、視覺化卡片佈局、固定案件規則、進度管理
-- Gemini API：生成證人、檢察官等角色的對話
+- Gemini API：只處理玩家自由輸入的證人問題
 - GitHub：程式碼、遊戲美術素材（`assets/`）與企劃文件
 - Streamlit Community Cloud：免費公開部署
 
@@ -37,7 +37,7 @@
 
 - 案件真相、證詞、證據和正確解答由程式固定；AI 只負責角色表達，不可更改真相或新增有效證據。
 - API Key 只放在部署平台的 Secrets，不寫入程式碼、文件或 Git 歷史。
-- 限制玩家輸入與 AI 呼叫次數，並準備不依賴 API 的備援對話。
+- 快捷追問和庭上反應使用固定台詞；限制自由輸入的 AI 呼叫次數，並準備不依賴 API 的備援對話。
 - 只使用虛構案件與角色資料。
 
 ## 本機啟動
@@ -51,9 +51,9 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-不設定 API Key 也能遊玩，證人會使用固定備援台詞。若要啟用 Gemini，將 `.streamlit/secrets.toml.example` 複製成 `.streamlit/secrets.toml`，再填入自己的 Key；這個檔案已加入 `.gitignore`，不可提交到 GitHub。部署到 Streamlit Community Cloud 時，請在 App 的 Secrets 設定相同的 `GEMINI_API_KEY`。
+不設定 API Key 也能遊玩，快捷追問與庭上反應會使用固定台詞。若要啟用 Gemini，將 `.streamlit/secrets.toml.example` 複製成 `.streamlit/secrets.toml`，再填入自己的 Key；這個檔案已加入 `.gitignore`，不可提交到 GitHub。部署到 Streamlit Community Cloud 時，請在 App 的 Secrets 設定相同的 `GEMINI_API_KEY`。只有自由輸入的問題會呼叫 Gemini。
 
-目前預設使用 `gemini-3.5-flash`。免費額度、可用模型與速率限制可能調整，請以 [Gemini API 官方定價頁](https://ai.google.dev/gemini-api/docs/pricing) 和 [模型清單](https://ai.google.dev/gemini-api/docs/models) 為準。啟用 Gemini 時，遊戲會傳送玩家問題、目前證人的公開設定和近期對話紀錄；不會傳送完整案件解答或其他玩家資料。免費層的資料處理方式可能與付費層不同，請勿輸入個人資料。
+目前預設使用 `gemini-3.5-flash-lite`，每個玩家工作階段最多 8 次自由提問 AI 呼叫；同一個 Streamlit 程序每天最多 100 次。免費額度、可用模型與速率限制可能調整，請以 [Gemini API 官方定價頁](https://ai.google.dev/gemini-api/docs/pricing) 和 [模型清單](https://ai.google.dev/gemini-api/docs/models) 為準。啟用 Gemini 時，只會傳送自由輸入的問題、目前證人的公開設定和近期對話紀錄；不會傳送完整案件解答或其他玩家資料。免費層的資料處理方式可能與付費層不同，請勿輸入個人資料。
 
 ## 專案狀態
 
