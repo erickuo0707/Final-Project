@@ -1,9 +1,15 @@
 import base64
+import importlib
 import random
 from copy import deepcopy
 from pathlib import Path
 
 import streamlit as st
+
+import game_data
+
+if not game_data.EVIDENCE or "object_short" not in game_data.EVIDENCE[0]:
+    game_data = importlib.reload(game_data)
 
 from ai_dialogue import (
     MAX_AI_CALLS_PER_SESSION,
@@ -29,6 +35,57 @@ from game_data import (
     STATEMENTS,
     WITNESSES,
 )
+
+_HOTSPOT_FALLBACKS = {
+    "E1": {
+        "object_name": "門禁電腦與監控畫面",
+        "object_short": "門禁監控電腦",
+        "object_icon": "🖥️",
+        "scene_spot": "B 展廳東側門禁電腦與入口監視器",
+        "scene_note": "螢幕停留在美術館內部「B 展廳東側門禁／出入館刷卡與入口走廊監控紀錄」查詢畫面。",
+        "hotspot_x": 83,
+        "hotspot_y": 26,
+    },
+    "E2": {
+        "object_name": "警報控制面板",
+        "object_short": "警報控制面板",
+        "object_icon": "🚨",
+        "scene_spot": "展廳左側牆面警報控制面板",
+        "scene_note": "面板顯示當晚 23:00 曾被切換至 6 分鐘維護靜音模式，現場無任何破壞痕跡。",
+        "hotspot_x": 17,
+        "hotspot_y": 28,
+    },
+    "E3": {
+        "object_name": "清潔勤務簿／筆記本",
+        "object_short": "清潔勤務筆記",
+        "object_icon": "📓",
+        "scene_spot": "展廳左前方長椅上的勤務筆記本",
+        "scene_note": "翻開的清潔勤務簽到簿清楚記載當晚清潔動線、完成簽退時間與地下室入庫紀錄。",
+        "hotspot_x": 21,
+        "hotspot_y": 79,
+    },
+    "E4": {
+        "object_name": "桌上出庫單文件",
+        "object_short": "桌上出庫文件",
+        "object_icon": "📋",
+        "scene_spot": "展廳右前方工作台上的出庫單文件夾",
+        "scene_note": "夾著一樓西側裝卸區的紙本出庫單，登記了一只恆溫運輸箱於深夜離館。",
+        "hotspot_x": 79,
+        "hotspot_y": 78,
+    },
+    "E5": {
+        "object_name": "畫框與檢驗資料",
+        "object_short": "畫框檢驗資料",
+        "object_icon": "🖼️",
+        "scene_spot": "展廳正中央主牆《海霧港灣》畫框與檢驗夾",
+        "scene_note": "畫框四周扣具完整無撬痕，旁邊的檢驗資料夾記載了展品背板封條與替換紀錄。",
+        "hotspot_x": 50,
+        "hotspot_y": 46,
+    },
+}
+for _item in EVIDENCE:
+    for _k, _v in _HOTSPOT_FALLBACKS.get(_item["id"], {}).items():
+        _item.setdefault(_k, _v)
 
 BASE_DIR = Path(__file__).resolve().parent
 EVIDENCE_BY_ID = {item["id"]: item for item in EVIDENCE}
