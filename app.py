@@ -1,9 +1,11 @@
 import base64
 import importlib
+import io
 import random
 from copy import deepcopy
 from pathlib import Path
 
+from PIL import Image
 import streamlit as st
 
 import game_data
@@ -41,44 +43,44 @@ _HOTSPOT_FALLBACKS = {
         "object_name": "門禁電腦與監控畫面",
         "object_short": "門禁監控電腦",
         "object_icon": "🖥️",
-        "scene_spot": "B 展廳東側門禁電腦與入口監視器",
-        "scene_note": "螢幕停留在美術館內部「B 展廳東側門禁／出入館刷卡與入口走廊監控紀錄」查詢畫面。",
+        "scene_spot": "2F B 展廳入口旁監控電腦",
+        "scene_note": "從現場電腦與監控畫面調閱美術館內部「門禁／出入館紀錄」，畫面顯示 18:42 林書妍刷識別證進入 2F B 展廳。",
         "hotspot_x": 83,
-        "hotspot_y": 26,
+        "hotspot_y": 36,
     },
     "E2": {
         "object_name": "警報控制面板",
         "object_short": "警報控制面板",
-        "object_icon": "🚨",
+        "object_icon": "📟",
         "scene_spot": "展廳左側牆面警報控制面板",
-        "scene_note": "面板顯示當晚 23:00 曾被切換至 6 分鐘維護靜音模式，現場無任何破壞痕跡。",
+        "scene_note": "從展廳牆上的警報控制面板查看感應器系統紀錄，顯示 18:41 至 18:54 期間遭管理帳號切換為旁路模式。",
         "hotspot_x": 17,
-        "hotspot_y": 28,
+        "hotspot_y": 36,
     },
     "E3": {
         "object_name": "清潔勤務簿／筆記本",
         "object_short": "清潔勤務筆記",
-        "object_icon": "📓",
-        "scene_spot": "展廳左前方長椅上的勤務筆記本",
-        "scene_note": "翻開的清潔勤務簽到簿清楚記載當晚清潔動線、完成簽退時間與地下室入庫紀錄。",
-        "hotspot_x": 21,
-        "hotspot_y": 79,
+        "object_icon": "📒",
+        "scene_spot": "左前方長椅上的勤務簿／筆記本",
+        "scene_note": "翻開放置在現場長椅上的清潔勤務簿／筆記本，頁面記錄當晚 B1 器材室的簽到與主管簽退時間戳記。",
+        "hotspot_x": 24,
+        "hotspot_y": 75,
     },
     "E4": {
         "object_name": "桌上出庫單文件",
         "object_short": "桌上出庫文件",
         "object_icon": "📋",
-        "scene_spot": "展廳右前方工作台上的出庫單文件夾",
-        "scene_note": "夾著一樓西側裝卸區的紙本出庫單，登記了一只恆溫運輸箱於深夜離館。",
-        "hotspot_x": 79,
-        "hotspot_y": 78,
+        "scene_spot": "右前方桌上的裝卸區出庫文件",
+        "scene_note": "檢視整理在右側桌上的館內西側裝卸區出庫單文件（亦登錄於館內出庫紀錄），記載 18:56 恆溫運輸箱出館簽核資訊。",
+        "hotspot_x": 76,
+        "hotspot_y": 75,
     },
     "E5": {
         "object_name": "畫框與檢驗資料",
         "object_short": "畫框檢驗資料",
         "object_icon": "🖼️",
-        "scene_spot": "展廳正中央主牆《海霧港灣》畫框與檢驗夾",
-        "scene_note": "畫框四周扣具完整無撬痕，旁邊的檢驗資料夾記載了展品背板封條與替換紀錄。",
+        "scene_spot": "展廳中央《海霧港灣》畫框與旁側檢驗資料",
+        "scene_note": "檢查展廳中央《海霧港灣》畫框背面與旁邊擺放的檢驗資料，比對畫布清漆成分與背面仿作編號。",
         "hotspot_x": 50,
         "hotspot_y": 46,
     },
@@ -98,239 +100,765 @@ def resolve_asset(rel_path: str) -> str | None:
 
 
 @st.cache_data(show_spinner=False)
-def get_image_data_uri(rel_path: str) -> str | None:
-    """將圖片轉為 base64 Data URI 供 2D 互動探索場景穩定載入。"""
+def get_image_data_uri(rel_path: str, max_width: int = 1280) -> str | None:
+    """將圖片最佳化並轉為 base64 Data URI 供 2D 沉浸探索與看板畫面即時載入。"""
     full_path = BASE_DIR / rel_path
     if not full_path.exists():
         return None
-    encoded = base64.b64encode(full_path.read_bytes()).decode("ascii")
-    return f"data:image/jpeg;base64,{encoded}"
+    try:
+        with Image.open(full_path) as img:
+            rgb = img.convert("RGB")
+            if rgb.width > max_width:
+                new_h = int(rgb.height * max_width / rgb.width)
+                rgb = rgb.resize((max_width, new_h), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            rgb.save(buf, format="JPEG", quality=82, optimize=True)
+            encoded = base64.b64encode(buf.getvalue()).decode("ascii")
+            return f"data:image/jpeg;base64,{encoded}"
+    except Exception:
+        encoded = base64.b64encode(full_path.read_bytes()).decode("ascii")
+        return f"data:image/jpeg;base64,{encoded}"
 
 
+# 場景中自然擺放的物件外觀（不直接寫出證物名稱，讓玩家自己去探索發現）
 HOTSPOT_PROP_SVGS = {
     "E1": (
-        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
-        "<rect x='4' y='3' width='48' height='30' rx='4' fill='#141B22' stroke='#DAB76A' stroke-width='2'/>"
-        "<rect x='8' y='7' width='24' height='22' rx='2' fill='#1E2B36'/>"
-        "<circle cx='20' cy='14' r='3.5' fill='#9FB8C8'/>"
-        "<path d='M14 26 C14 20 26 20 26 26 Z' fill='#9FB8C8'/>"
-        "<line x1='35' y1='11' x2='48' y2='11' stroke='#56D364' stroke-width='2.2'/>"
-        "<line x1='35' y1='17' x2='46' y2='17' stroke='#DAB76A' stroke-width='2'/>"
-        "<line x1='35' y1='23' x2='44' y2='23' stroke='#DAB76A' stroke-width='2'/>"
-        "<path d='M22 33 L34 33 L38 39 L18 39 Z' fill='#5A4A33'/>"
+        "<svg viewBox='0 0 64 52' aria-hidden='true'>"
+        "<ellipse cx='32' cy='46' rx='24' ry='4' fill='rgba(0,0,0,0.55)'/>"
+        "<rect x='8' y='4' width='48' height='32' rx='4' fill='#111820' stroke='#8CA8BE' stroke-width='1.8'/>"
+        "<rect x='12' y='8' width='40' height='24' rx='2' fill='#162836'/>"
+        "<rect x='15' y='11' width='16' height='18' rx='1.5' fill='#1F3A4D'/>"
+        "<circle cx='23' cy='17' r='3' fill='#9AD1D4'/>"
+        "<path d='M18 27 C18 22 28 22 28 27 Z' fill='#9AD1D4'/>"
+        "<line x1='35' y1='13' x2='49' y2='13' stroke='#56D364' stroke-width='2'/>"
+        "<line x1='35' y1='19' x2='47' y2='19' stroke='#E3B341' stroke-width='2'/>"
+        "<line x1='35' y1='25' x2='45' y2='25' stroke='#79C0FF' stroke-width='2'/>"
+        "<path d='M26 36 L38 36 L43 44 L21 44 Z' fill='#2B333C'/>"
         "</svg>"
     ),
     "E2": (
-        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
-        "<rect x='5' y='4' width='46' height='34' rx='4' fill='#1B1F24' stroke='#DAB76A' stroke-width='2'/>"
-        "<rect x='10' y='8' width='36' height='11' rx='2' fill='#2E2214' stroke='#E09F3E' stroke-width='1.2'/>"
-        "<text x='28' y='16' text-anchor='middle' fill='#F3C663' font-size='7' font-weight='700'>BYPASS</text>"
-        "<circle cx='13' cy='25' r='2.2' fill='#56D364'/>"
-        "<circle cx='13' cy='31' r='2.2' fill='#F3C663'/>"
-        "<rect x='22' y='23' width='6' height='4.5' rx='1' fill='#3B434E'/>"
-        "<rect x='30' y='23' width='6' height='4.5' rx='1' fill='#3B434E'/>"
-        "<rect x='38' y='23' width='6' height='4.5' rx='1' fill='#3B434E'/>"
-        "<rect x='22' y='29.5' width='6' height='4.5' rx='1' fill='#3B434E'/>"
-        "<rect x='30' y='29.5' width='6' height='4.5' rx='1' fill='#3B434E'/>"
-        "<rect x='38' y='29.5' width='6' height='4.5' rx='1' fill='#C97A3E'/>"
+        "<svg viewBox='0 0 64 52' aria-hidden='true'>"
+        "<ellipse cx='32' cy='47' rx='20' ry='3.5' fill='rgba(0,0,0,0.5)'/>"
+        "<rect x='12' y='5' width='40' height='38' rx='4' fill='#1B2026' stroke='#8B949E' stroke-width='1.8'/>"
+        "<rect x='17' y='10' width='30' height='11' rx='2' fill='#2D1F12' stroke='#D29922' stroke-width='1.2'/>"
+        "<circle cx='20' cy='27' r='2.5' fill='#3FB950'/>"
+        "<circle cx='20' cy='35' r='2.5' fill='#F85149'/>"
+        "<rect x='27' y='25' width='6' height='4.5' rx='1' fill='#3B434E'/>"
+        "<rect x='35' y='25' width='6' height='4.5' rx='1' fill='#3B434E'/>"
+        "<rect x='27' y='32' width='6' height='4.5' rx='1' fill='#3B434E'/>"
+        "<rect x='35' y='32' width='6' height='4.5' rx='1' fill='#D29922'/>"
         "</svg>"
     ),
     "E3": (
-        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
-        "<rect x='11' y='5' width='34' height='34' rx='3' fill='#6A4E2F' stroke='#DAB76A' stroke-width='2'/>"
-        "<rect x='15' y='9' width='26' height='27' rx='1.5' fill='#F3EAD8'/>"
-        "<rect x='22' y='2.5' width='12' height='5' rx='2' fill='#C8A96A'/>"
-        "<line x1='19' y1='15' x2='37' y2='15' stroke='#4A4033' stroke-width='2'/>"
-        "<line x1='19' y1='21' x2='35' y2='21' stroke='#7A6B58' stroke-width='1.8'/>"
-        "<line x1='19' y1='26' x2='33' y2='26' stroke='#7A6B58' stroke-width='1.8'/>"
-        "<circle cx='34' cy='30' r='4.2' fill='none' stroke='#C94A4A' stroke-width='1.8'/>"
+        "<svg viewBox='0 0 64 52' aria-hidden='true'>"
+        "<ellipse cx='32' cy='44' rx='25' ry='5' fill='rgba(0,0,0,0.55)'/>"
+        "<g transform='rotate(-8 32 26)'>"
+        "<rect x='14' y='7' width='36' height='34' rx='3' fill='#6D4C2D' stroke='#C8A464' stroke-width='1.6'/>"
+        "<rect x='18' y='11' width='28' height='26' rx='1.5' fill='#F5EBD6'/>"
+        "<rect x='25' y='4.5' width='14' height='5' rx='2' fill='#B5945B'/>"
+        "<line x1='22' y1='17' x2='42' y2='17' stroke='#5C4D3C' stroke-width='2'/>"
+        "<line x1='22' y1='23' x2='40' y2='23' stroke='#8C7A65' stroke-width='1.8'/>"
+        "<line x1='22' y1='29' x2='37' y2='29' stroke='#8C7A65' stroke-width='1.8'/>"
+        "</g>"
         "</svg>"
     ),
     "E4": (
-        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
-        "<path d='M8 9 L22 9 L26 13 L48 13 L48 36 L8 36 Z' fill='#3D3020' stroke='#DAB76A' stroke-width='2'/>"
-        "<rect x='14' y='6' width='28' height='26' rx='2' fill='#EFE4CE' stroke='#8C734B' stroke-width='1.5'/>"
-        "<line x1='18' y1='12' x2='38' y2='12' stroke='#3A3125' stroke-width='2'/>"
-        "<line x1='18' y1='18' x2='35' y2='18' stroke='#6E5D47' stroke-width='1.8'/>"
-        "<line x1='18' y1='23' x2='32' y2='23' stroke='#6E5D47' stroke-width='1.8'/>"
-        "<rect x='29' y='21' width='11' height='7' rx='1' transform='rotate(-12 34 24)' fill='none' stroke='#C94A4A' stroke-width='1.8'/>"
+        "<svg viewBox='0 0 64 52' aria-hidden='true'>"
+        "<ellipse cx='32' cy='44' rx='25' ry='5' fill='rgba(0,0,0,0.55)'/>"
+        "<g transform='rotate(7 32 26)'>"
+        "<path d='M10 11 L25 11 L29 15 L52 15 L52 39 L10 39 Z' fill='#3F3122' stroke='#C8A464' stroke-width='1.6'/>"
+        "<rect x='16' y='8' width='30' height='27' rx='2' fill='#F2E6CE' stroke='#8C734B' stroke-width='1.3'/>"
+        "<line x1='20' y1='14' x2='42' y2='14' stroke='#4A3E2E' stroke-width='2'/>"
+        "<line x1='20' y1='20' x2='39' y2='20' stroke='#7A6852' stroke-width='1.8'/>"
+        "<line x1='20' y1='26' x2='35' y2='26' stroke='#7A6852' stroke-width='1.8'/>"
+        "<rect x='32' y='23' width='10' height='7' rx='1' transform='rotate(-12 37 26)' fill='none' stroke='#C94A4A' stroke-width='1.8'/>"
+        "</g>"
         "</svg>"
     ),
     "E5": (
-        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
-        "<rect x='6' y='5' width='34' height='28' rx='2.5' fill='#232931' stroke='#DAB76A' stroke-width='2.5'/>"
-        "<rect x='10' y='9' width='26' height='20' fill='#1A2028'/>"
-        "<text x='23' y='22' text-anchor='middle' fill='#E06C75' font-size='8' font-weight='800'>R-07</text>"
-        "<circle cx='39' cy='24' r='8' fill='rgba(96, 165, 250, 0.22)' stroke='#F3E3BE' stroke-width='2.2'/>"
-        "<line x1='45' y1='30' x2='51' y2='36' stroke='#DAB76A' stroke-width='3' stroke-linecap='round'/>"
+        "<svg viewBox='0 0 64 52' aria-hidden='true'>"
+        "<ellipse cx='32' cy='46' rx='22' ry='4' fill='rgba(0,0,0,0.45)'/>"
+        "<rect x='11' y='6' width='36' height='30' rx='2.5' fill='#26211B' stroke='#DAB76A' stroke-width='2.2'/>"
+        "<rect x='15' y='10' width='28' height='22' fill='#1B2733'/>"
+        "<circle cx='43' cy='28' r='9' fill='rgba(218, 183, 106, 0.22)' stroke='#F5E3B8' stroke-width='2.2'/>"
+        "<line x1='49' y1='34' x2='56' y2='41' stroke='#DAB76A' stroke-width='3.2' stroke-linecap='round'/>"
         "</svg>"
     ),
+}
+
+# 點進現場物件後開啟的「第一人稱近距離看板／拿起報告」互動結構（完全對應 game_data.py 既有設定）
+CLOSEUP_BOARDS = {
+    "E1": {
+        "board_theme": "terminal",
+        "hover_prompt": "🔍 靠近查看展廳入口旁的電腦螢幕",
+        "header_kicker": "MUSEUM SECURITY OS v3.4 // INTERNAL ACCESS & CCTV TERMINAL",
+        "header_title": "🖥️ 美術館內部門禁與入口監視器查詢畫面",
+        "header_sub": "位置：2F B 展廳東側入口監控台　｜　系統時間：案發當晚閉館後",
+        "instruction": "🖐️ 你湊近查看門禁電腦螢幕。請檢視下方出入館刷卡紀錄，點擊【可疑的刷卡與影像紀錄】進行採證：",
+        "stamp_text": "已擷取門禁紀錄",
+        "rows": [
+            {
+                "label": "18:30:00 ｜ 2F B 展廳東側門",
+                "value": "系統狀態：閉館自動上鎖（一般觀眾離場，進入閉館管制）",
+                "is_clue": False,
+            },
+            {
+                "label": "18:42:15 ｜ 2F B 展廳東側門【閉館後刷卡進入】",
+                "value": "刷入識別證：林書妍（美術館策展人）｜ 入口監視器影像：經值班員核對為林書妍本人",
+                "is_clue": True,
+            },
+            {
+                "label": "19:05:10 ｜ 2F B 展廳內部巡檢",
+                "value": "夜班保全陳建中巡場至 B 展廳，通報《海霧港灣》疑似遭調包",
+                "is_clue": False,
+            },
+        ],
+    },
+    "E2": {
+        "board_theme": "panel",
+        "hover_prompt": "🔍 靠近查看牆面上的警報控制面板",
+        "header_kicker": "ALARM CONTROL CONSOLE // ZONE 2F-B MOTION SENSOR LOG",
+        "header_title": "📟 B 展廳防盜警報控制面板 · 系統紀錄畫面",
+        "header_sub": "位置：2F B 展廳左側牆面控制箱　｜　硬體狀態：外殼無破壞痕跡",
+        "instruction": "🖐️ 你打開警報控制面板檢視液晶紀錄。請點擊下方【遭人切換的異常時段紀錄】進行採證：",
+        "stamp_text": "已採證系統紀錄",
+        "rows": [
+            {
+                "label": "18:30 ｜ B 展廳紅外線與動作感應器",
+                "value": "狀態：NORMAL（閉館防盜警戒正常啟動）",
+                "is_clue": False,
+            },
+            {
+                "label": "18:41–18:54 ｜ B 展廳動作感應器【狀態異動】",
+                "value": "狀態：切換為「旁路模式 (BYPASS)」暫停感應 ｜ 操作帳號：策展人專用的管理帳號",
+                "is_clue": True,
+            },
+            {
+                "label": "18:54 ｜ B 展廳紅外線與動作感應器",
+                "value": "狀態：恢復 NORMAL 警戒模式（19:05 前無異常觸發警報）",
+                "is_clue": False,
+            },
+        ],
+    },
+    "E3": {
+        "board_theme": "paper-notebook",
+        "hover_prompt": "🔍 拿起長椅上的值勤筆記本翻閱",
+        "header_kicker": "FOG HARBOR MUSEUM // B1 MAINTENANCE SHIFT LOGBOOK",
+        "header_title": "📒 市立霧港美術館 · B1 清潔勤務簽到簿（實物翻閱）",
+        "header_sub": "位置：長椅上遺留的值勤簿　｜　表單編號：CLN-B1-1115",
+        "instruction": "🖐️ 你拿起長椅上的清潔勤務簽到簿翻看。請點擊紙本上的【關鍵簽到與主管簽退時間戳記】進行採證：",
+        "stamp_text": "已核對簽退戳記",
+        "rows": [
+            {
+                "label": "當班人員與值勤地點",
+                "value": "姓名：王冠宇（清潔員） ｜ 負責區域：B1 地下清潔器材室（整理清潔車與備品）",
+                "is_clue": False,
+            },
+            {
+                "label": "18:30–19:00 ｜ 簽到與主管簽退時間戳記",
+                "value": "18:30 於 B1 器材室打卡簽到 → 19:00 由值班主管核對簽退（兩筆紀錄均有正式時間戳記）",
+                "is_clue": True,
+            },
+            {
+                "label": "器材清點備註",
+                "value": "當晚清潔推車與工具全數留置於 B1 器材室，無推上 2F 展廳之紀錄",
+                "is_clue": False,
+            },
+        ],
+    },
+    "E4": {
+        "board_theme": "paper-manifest",
+        "hover_prompt": "🔍 拿起桌上的公文夾檢視單據",
+        "header_kicker": "WEST LOADING DOCK // OUTBOUND LOGISTICS MANIFEST",
+        "header_title": "📋 市立霧港美術館 · 西側裝卸區出庫單（實物檢視）",
+        "header_sub": "位置：展廳右側工作台文件夾　｜　聯單別：館內物流放行存根聯",
+        "instruction": "🖐️ 你拿起桌上的裝卸區出庫單細看。請點擊單據上【可疑的運輸箱出庫與簽核欄位】進行採證：",
+        "stamp_text": "已採證出庫單據",
+        "rows": [
+            {
+                "label": "出庫時間與通道",
+                "value": "時間：當晚 18:56 ｜ 放行通道：1F 西側裝卸區（大型展品與器材通道）",
+                "is_clue": False,
+            },
+            {
+                "label": "出庫品項與申請／簽核人欄位",
+                "value": "品項：標示「器材退庫」之恆溫運輸箱 1 只 ｜ 申請人：林書妍 ｜ 簽核人：林書妍 ｜ 箱內物品欄：【空白未填寫】",
+                "is_clue": True,
+            },
+            {
+                "label": "裝卸區值勤備註",
+                "value": "憑策展人親簽退庫單直接放行出館，現場未拆箱查驗內部物品",
+                "is_clue": False,
+            },
+        ],
+    },
+    "E5": {
+        "board_theme": "paper-report",
+        "hover_prompt": "🔍 近距離檢視中央畫框與旁側檢驗報告",
+        "header_kicker": "FORENSIC CONSERVATION REPORT // EXHIBIT FRAME INSPECTION",
+        "header_title": "🖼️ 《海霧港灣》畫框現場檢驗與畫作鑑定報告",
+        "header_sub": "位置：2F B 展廳中央主牆畫框　｜　檢驗時間：19:05 案發封鎖後",
+        "instruction": "🖐️ 你近距離檢查中央畫框背面並拿起旁邊的檢驗報告。請點擊報告中的【關鍵鑑定結論與仿作編號】進行採證：",
+        "stamp_text": "已採證鑑定報告",
+        "rows": [
+            {
+                "label": "現場畫框外觀檢查",
+                "value": "2F B 展廳主牆畫框外框完整，四周固定扣具熟悉操作即可拆裝",
+                "is_clue": False,
+            },
+            {
+                "label": "畫布材質與背面編號檢驗結果",
+                "value": "留在展廳畫框中的畫布含有「合成清漆」，且背面印有修復室仿作編號「R-07」；鑑定結論確認為仿作",
+                "is_clue": True,
+            },
+            {
+                "label": "館藏原作比對說明",
+                "value": "《海霧港灣》真跡使用傳統天然樹脂清漆，確認真跡已遭人以 R-07 仿作調包帶走",
+                "is_clue": False,
+            },
+        ],
+    },
 }
 
 SCENE_COMPONENT_CSS = """
 * { box-sizing: border-box; }
 .scene-wrapper {
+    position: relative;
     border: 1.5px solid #5A4A33;
     border-radius: 16px;
     overflow: hidden;
-    background: #14171C;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    background: #0B0E12;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.65);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    transition: all 0.22s ease;
+}
+.scene-wrapper.is-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 999999 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    display: flex;
+    flex-direction: column;
+    background: #06080B;
 }
 .scene-topbar {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.65rem 1rem;
-    background: linear-gradient(90deg, #1A1E24 0%, #26211A 100%);
+    gap: 0.6rem;
+    padding: 0.65rem 1.1rem;
+    background: linear-gradient(90deg, #14181F 0%, #241E17 100%);
     border-bottom: 1px solid #483B28;
     color: #EAE1D0;
-    font-size: 0.85rem;
+    font-size: 0.86rem;
+    z-index: 30;
 }
 .scene-topbar-title {
     font-weight: 700;
     color: #F3E3BE;
     display: flex;
     align-items: center;
-    gap: 0.45rem;
-}
-.scene-legend {
-    display: flex;
+    gap: 0.55rem;
     flex-wrap: wrap;
-    gap: 0.65rem;
-    font-size: 0.78rem;
-    color: #C9BFA8;
 }
-.legend-dot {
+.hud-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.3rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    background: rgba(218, 183, 106, 0.14);
+    border: 1px solid rgba(218, 183, 106, 0.4);
+    color: #F3E3BE;
+}
+.scene-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+}
+.hud-btn {
+    appearance: none;
+    border: 1px solid #6E5836;
+    background: #231E17;
+    color: #F5E6C4;
+    padding: 0.34rem 0.78rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    transition: all 0.15s ease;
+}
+.hud-btn:hover {
+    background: #382E20;
+    border-color: #DAB76A;
+    transform: translateY(-1px);
+}
+.hud-btn.primary {
+    background: linear-gradient(135deg, #DAB76A 0%, #B88E3E 100%);
+    color: #16130E;
+    border-color: #F3E3BE;
+}
+.hud-btn.primary:hover {
+    filter: brightness(1.08);
+}
+.hud-btn.active-toggle {
+    background: rgba(218, 183, 106, 0.26);
+    border-color: #FCE592;
+    color: #FFF4D2;
 }
 .scene-canvas {
     position: relative;
     width: 100%;
     aspect-ratio: 1376 / 768;
-    background: #0F1216;
+    background: #080A0E;
     overflow: hidden;
+    user-select: none;
+}
+.scene-wrapper.is-fullscreen .scene-canvas {
+    flex: 1;
+    aspect-ratio: auto;
+    height: calc(100vh - 52px);
+}
+.scene-stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+.scene-wrapper.is-fullscreen .scene-stage {
+    max-width: min(100vw, calc((100vh - 52px) * 1376 / 768));
+    max-height: calc(100vh - 52px);
+    aspect-ratio: 1376 / 768;
+    margin: 0 auto;
 }
 .scene-bg {
     width: 100%;
     height: 100%;
     display: block;
     object-fit: fill;
-    user-select: none;
     pointer-events: none;
+    filter: contrast(1.03) brightness(0.95);
 }
-@keyframes hotspotPulse {
-    0% { box-shadow: 0 0 0 0 rgba(218, 183, 106, 0.55), 0 6px 18px rgba(0, 0, 0, 0.75); }
-    70% { box-shadow: 0 0 0 9px rgba(218, 183, 106, 0), 0 6px 18px rgba(0, 0, 0, 0.75); }
-    100% { box-shadow: 0 0 0 0 rgba(218, 183, 106, 0), 0 6px 18px rgba(0, 0, 0, 0.75); }
+/* 手電筒微光沉浸遮罩 */
+.scene-flashlight {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(
+        circle 280px at var(--mx, 50%) var(--my, 50%),
+        rgba(255, 244, 214, 0.09) 0%,
+        rgba(10, 13, 18, 0.18) 55%,
+        rgba(5, 7, 11, 0.46) 100%
+    );
+    z-index: 1;
 }
-.scene-hotspot {
+/* 現場底部沉浸提示列 */
+.scene-bottom-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    background: rgba(13, 16, 21, 0.84);
+    border: 1px solid rgba(218, 183, 106, 0.45);
+    backdrop-filter: blur(6px);
+    color: #EFE5D1;
+    padding: 0.42rem 1.05rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    z-index: 4;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+}
+@keyframes glintPulse {
+    0% { transform: scale(0.92); box-shadow: 0 0 0 0 rgba(243, 206, 115, 0.75); }
+    70% { transform: scale(1.06); box-shadow: 0 0 0 14px rgba(243, 206, 115, 0); }
+    100% { transform: scale(0.92); box-shadow: 0 0 0 0 rgba(243, 206, 115, 0); }
+}
+/* 現場自然擺放的可互動熱區（不直接印出證物答案文字） */
+.scene-spot {
     position: absolute;
     transform: translate(-50%, -50%);
-    width: max-content;
+    background: transparent;
+    border: none;
+    padding: 6px;
+    cursor: zoom-in;
+    z-index: 3;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.22rem;
-    padding: 0.42rem 0.68rem;
-    border-radius: 12px;
-    background: rgba(18, 21, 26, 0.86);
-    backdrop-filter: blur(4px);
-    color: #F8F2E8;
-    cursor: pointer;
-    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
-    text-align: center;
-    z-index: 2;
+    justify-content: center;
+    transition: transform 0.18s ease, filter 0.18s ease;
 }
-.scene-hotspot.unvisited {
-    border: 1.8px solid #DAB76A;
-    animation: hotspotPulse 2.4s infinite;
-}
-.scene-hotspot.visited {
-    border: 1.8px solid #3FB950;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.72);
-}
-.scene-hotspot.active {
-    border: 2px solid #FCE592;
-    background: rgba(38, 32, 22, 0.94);
-    box-shadow: 0 0 0 3px rgba(252, 229, 146, 0.42), 0 10px 26px rgba(0, 0, 0, 0.88);
-    transform: translate(-50%, -50%) scale(1.05);
-    z-index: 5;
-}
-.scene-hotspot:hover,
-.scene-hotspot:focus-visible {
-    transform: translate(-50%, -50%) scale(1.06);
-    background: rgba(34, 29, 21, 0.95);
+.scene-spot:hover,
+.scene-spot:focus-visible {
+    transform: translate(-50%, -50%) scale(1.12);
+    filter: drop-shadow(0 0 14px rgba(252, 229, 146, 0.85));
     outline: none;
-    z-index: 6;
+    z-index: 8;
 }
-.hotspot-prop {
-    width: 44px;
-    height: 33px;
+.spot-prop {
+    width: 66px;
+    height: 54px;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.75));
 }
-.hotspot-prop svg {
+.spot-prop svg {
     width: 100%;
     height: 100%;
     display: block;
 }
-.hotspot-title {
-    font-size: 0.78rem;
+/* 未調查時顯示微光放大鏡光點；開啟雷達時更明顯 */
+.spot-glint {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+.scene-spot.unvisited .spot-glint {
+    background: radial-gradient(circle, #FFF3C4 0%, #DAB76A 70%, #9E772B 100%);
+    color: #18140C;
+    border: 1.5px solid #FFF8DE;
+    animation: glintPulse 2.2s infinite;
+}
+.scene-spot.visited .spot-glint {
+    background: rgba(46, 160, 67, 0.92);
+    color: #FFFFFF;
+    border: 1.5px solid #A7F3D0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
+}
+.scene-wrapper.radar-on .scene-spot.unvisited .spot-prop {
+    outline: 2px dashed rgba(252, 229, 146, 0.85);
+    outline-offset: 4px;
+    border-radius: 12px;
+    background: rgba(218, 183, 106, 0.15);
+}
+/* 滑鼠移過去才浮現的現場動作提示（不劇透證物編號與結論） */
+.spot-hover-tip {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    opacity: 0;
+    pointer-events: none;
+    background: rgba(16, 19, 24, 0.94);
+    border: 1px solid #DAB76A;
+    color: #F8F1E1;
+    padding: 0.25rem 0.65rem;
+    border-radius: 8px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.75);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.scene-spot:hover .spot-hover-tip,
+.scene-spot:focus-visible .spot-hover-tip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ======== 第一人稱近距離「看板／拿起報告」全畫面檢視層 ======== */
+.board-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(7, 10, 15, 0.84);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1.1rem;
+    animation: fadeInBoard 0.18s ease-out;
+}
+.board-overlay.open {
+    display: flex;
+}
+@keyframes fadeInBoard {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+}
+.board-sheet {
+    width: min(980px, 96%);
+    max-height: 94%;
+    overflow-y: auto;
+    border-radius: 16px;
+    padding: 1.25rem 1.4rem;
+    position: relative;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+/* 電腦終端機／控制面板深色科技看板風格 */
+.board-sheet.theme-terminal,
+.board-sheet.theme-panel {
+    background: linear-gradient(160deg, #101923 0%, #0C131A 100%);
+    border: 2px solid #4B6B88;
+    color: #E6F1FA;
+}
+.board-sheet.theme-panel {
+    background: linear-gradient(160deg, #181B20 0%, #111317 100%);
+    border: 2px solid #8C6D3F;
+}
+/* 現場手持紙本報告／簽到簿／出庫單實物紙張風格 */
+.board-sheet.theme-paper-notebook,
+.board-sheet.theme-paper-manifest,
+.board-sheet.theme-paper-report {
+    background: linear-gradient(165deg, #F6EFE2 0%, #EAE0CC 100%);
+    border: 3px solid #6E5233;
+    color: #262018;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.88), inset 0 0 0 1px rgba(138, 109, 70, 0.35);
+}
+.board-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.8rem;
+    border-bottom: 1.5px solid rgba(140, 120, 90, 0.32);
+    padding-bottom: 0.65rem;
+}
+.board-kicker {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    opacity: 0.78;
+}
+.board-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+    margin: 0.15rem 0;
+}
+.board-sub {
+    font-size: 0.8rem;
+    opacity: 0.82;
+}
+.board-close-btn {
+    appearance: none;
+    border: 1.5px solid rgba(150, 130, 100, 0.6);
+    background: rgba(20, 24, 30, 0.85);
+    color: #F6EFE2;
+    padding: 0.38rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
     font-weight: 700;
-    color: #F7EFE2;
-    line-height: 1.2;
+    cursor: pointer;
     white-space: nowrap;
 }
-.hotspot-status {
-    display: inline-block;
+.board-close-btn:hover {
+    border-color: #DAB76A;
+    background: #2C2419;
+}
+.board-instruction {
+    padding: 0.55rem 0.85rem;
+    border-radius: 10px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    background: rgba(218, 183, 106, 0.18);
+    border-left: 4px solid #DAB76A;
+}
+.theme-paper-notebook .board-instruction,
+.theme-paper-manifest .board-instruction,
+.theme-paper-report .board-instruction {
+    background: rgba(180, 130, 50, 0.14);
+    border-left-color: #9E6B20;
+    color: #3A2B17;
+}
+.board-body {
+    display: grid;
+    grid-template-columns: 1fr 1.35fr;
+    gap: 1rem;
+    align-items: start;
+}
+.board-photo-box {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1.5px solid rgba(140, 120, 90, 0.45);
+    background: #0E1217;
+    position: relative;
+}
+.board-photo-box img {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    display: block;
+}
+.board-photo-cap {
+    padding: 0.42rem 0.65rem;
+    font-size: 0.76rem;
+    color: #D7CEBE;
+    background: #151920;
+}
+.board-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+.board-row {
+    width: 100%;
+    text-align: left;
+    padding: 0.68rem 0.85rem;
+    border-radius: 10px;
+    border: 1.5px solid rgba(135, 120, 95, 0.42);
+    background: rgba(255, 255, 255, 0.06);
+    color: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+}
+.theme-paper-notebook .board-row,
+.theme-paper-manifest .board-row,
+.theme-paper-report .board-row {
+    background: rgba(255, 252, 245, 0.82);
+    border-color: #C4B293;
+}
+.board-row:hover {
+    transform: translateX(3px);
+    border-color: #DAB76A;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+.board-row-label {
+    font-size: 0.76rem;
+    font-weight: 800;
+    opacity: 0.82;
+    margin-bottom: 0.2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.board-row-val {
+    font-size: 0.88rem;
+    line-height: 1.42;
+    font-weight: 600;
+}
+.board-row.normal-checked {
+    opacity: 0.72;
+}
+.board-row.normal-checked .row-tag::after {
+    content: "✓ 一般常規紀錄";
+    font-size: 0.7rem;
+    color: #8B949E;
+}
+/* 玩家點中關鍵可疑紀錄時的紅筆／螢光圈選採證效果 */
+.board-sheet.is-collected .board-row[data-is-clue="1"] {
+    border: 2px solid #D94848;
+    background: rgba(217, 72, 72, 0.14);
+    box-shadow: 0 0 0 3px rgba(217, 72, 72, 0.18);
+}
+.board-sheet.is-collected .board-row[data-is-clue="1"] .row-tag::after {
+    content: "🖍️ 關鍵證據已採證";
+    background: #C93B3B;
+    color: #FFF;
     padding: 0.1rem 0.45rem;
     border-radius: 999px;
     font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
 }
-.scene-hotspot.unvisited .hotspot-status {
-    background: rgba(218, 183, 106, 0.2);
-    color: #F5D284;
-    border: 1px solid rgba(218, 183, 106, 0.5);
+.board-conclusion {
+    display: none;
+    padding: 0.75rem 0.95rem;
+    border-radius: 10px;
+    background: rgba(46, 160, 67, 0.16);
+    border: 1.5px solid #3FB950;
+    font-size: 0.85rem;
+    line-height: 1.45;
 }
-.scene-hotspot.visited .hotspot-status {
-    background: rgba(63, 185, 80, 0.2);
-    color: #7EE787;
-    border: 1px solid rgba(63, 185, 80, 0.5);
+.theme-paper-notebook .board-conclusion,
+.theme-paper-manifest .board-conclusion,
+.theme-paper-report .board-conclusion {
+    background: #E5F6E8;
+    border-color: #2E8540;
+    color: #163B1E;
 }
-@media (max-width: 680px) {
-    .scene-topbar {
-        padding: 0.45rem 0.7rem;
-        font-size: 0.75rem;
+.board-sheet.is-collected .board-conclusion {
+    display: block;
+}
+.board-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    padding-top: 0.4rem;
+}
+.collect-action-btn {
+    appearance: none;
+    border: none;
+    padding: 0.58rem 1.2rem;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 800;
+    cursor: pointer;
+    background: linear-gradient(135deg, #DAB76A 0%, #B88B38 100%);
+    color: #17130C;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    transition: all 0.15s ease;
+}
+.collect-action-btn:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+.board-sheet.is-collected .collect-action-btn {
+    background: #2EA043;
+    color: #FFFFFF;
+}
+/* 證物袋總覽抽屜 */
+.bag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.75rem;
+}
+.bag-card {
+    padding: 0.75rem;
+    border-radius: 10px;
+    border: 1px solid #483B28;
+    background: #161A20;
+    color: #EAE1D0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.bag-card.locked {
+    opacity: 0.65;
+    border-style: dashed;
+}
+@media (max-width: 720px) {
+    .board-body {
+        grid-template-columns: 1fr;
     }
-    .scene-legend {
-        font-size: 0.7rem;
-        gap: 0.45rem;
+    .board-photo-box img {
+        height: 165px;
     }
-    .scene-hotspot {
-        padding: 0.2rem 0.35rem;
-        gap: 0.08rem;
-        border-radius: 8px;
+    .spot-prop {
+        width: 44px;
+        height: 36px;
     }
-    .hotspot-prop {
-        width: 24px;
+    .spot-glint {
+        width: 18px;
         height: 18px;
-    }
-    .hotspot-title {
         font-size: 0.58rem;
-        line-height: 1.1;
     }
-    .hotspot-status {
-        font-size: 0.52rem;
-        padding: 0.04rem 0.26rem;
+    .scene-bottom-hint {
+        font-size: 0.7rem;
+        padding: 0.3rem 0.75rem;
     }
 }
 """
@@ -346,16 +874,172 @@ export default function(component) {
     }
     mount.innerHTML = data;
 
-    const buttons = mount.querySelectorAll('[data-evidence-id]');
-    buttons.forEach((btn) => {
+    const wrapper = mount.querySelector('.scene-wrapper');
+    const canvas = mount.querySelector('.scene-canvas');
+    if (!wrapper || !canvas) return;
+
+    // 保留玩家全螢幕、雷達與目前翻閱中的報告看板狀態
+    if (window.__museumFullscreen) {
+        wrapper.classList.add('is-fullscreen');
+    }
+    if (window.__museumRadar) {
+        wrapper.classList.add('radar-on');
+    }
+
+    const syncButtons = () => {
+        const fsBtn = mount.querySelector('[data-action="toggle-fs"]');
+        if (fsBtn) {
+            const isFs = wrapper.classList.contains('is-fullscreen') || Boolean(document.fullscreenElement);
+            fsBtn.textContent = isFs ? '🖥️ 退出全螢幕' : '🖥️ 全螢幕沉浸模式';
+            fsBtn.classList.toggle('active-toggle', isFs);
+        }
+        const radarBtn = mount.querySelector('[data-action="toggle-radar"]');
+        if (radarBtn) {
+            radarBtn.classList.toggle('active-toggle', wrapper.classList.contains('radar-on'));
+        }
+    };
+
+    const openBoard = (evId) => {
+        window.__activeBoardId = evId;
+        window.__bagOpen = false;
+        mount.querySelectorAll('.board-overlay').forEach((ov) => {
+            ov.classList.toggle('open', ov.getAttribute('data-board-id') === evId);
+        });
+    };
+
+    const closeAllBoards = () => {
+        window.__activeBoardId = null;
+        window.__bagOpen = false;
+        mount.querySelectorAll('.board-overlay').forEach((ov) => ov.classList.remove('open'));
+    };
+
+    if (window.__activeBoardId) {
+        openBoard(window.__activeBoardId);
+    } else if (window.__bagOpen) {
+        mount.querySelectorAll('.board-overlay').forEach((ov) => {
+            ov.classList.toggle('open', ov.getAttribute('data-board-id') === 'BAG');
+        });
+    }
+    syncButtons();
+
+    // 手電筒游標跟隨效果
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        canvas.style.setProperty('--mx', `${x.toFixed(1)}%`);
+        canvas.style.setProperty('--my', `${y.toFixed(1)}%`);
+    });
+
+    // 點擊場景中的可疑物件 -> 進入第一人稱「拿起報告／查看看板」畫面
+    mount.querySelectorAll('[data-open-spot]').forEach((spotBtn) => {
+        spotBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const evId = spotBtn.getAttribute('data-open-spot');
+            if (evId) openBoard(evId);
+        };
+    });
+
+    // 關閉看板返回現場
+    mount.querySelectorAll('[data-close-board]').forEach((btn) => {
         btn.onclick = (e) => {
             e.preventDefault();
-            const evId = btn.getAttribute('data-evidence-id');
-            if (evId) {
-                setTriggerValue('clicked', evId);
+            e.stopPropagation();
+            closeAllBoards();
+        };
+    });
+    mount.querySelectorAll('.board-overlay').forEach((ov) => {
+        ov.onclick = (e) => {
+            if (e.target === ov) closeAllBoards();
+        };
+    });
+
+    // 在看板／報告中點擊紀錄列或「採證收進卷宗」按鈕
+    const collectEvidence = (evId) => {
+        const sheet = mount.querySelector(`.board-sheet[data-sheet-id="${evId}"]`);
+        if (sheet) {
+            sheet.classList.add('is-collected');
+        }
+        window.__activeBoardId = evId;
+        setTriggerValue('clicked', evId);
+    };
+
+    mount.querySelectorAll('[data-row-ev]').forEach((rowBtn) => {
+        rowBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const evId = rowBtn.getAttribute('data-row-ev');
+            const isClue = rowBtn.getAttribute('data-is-clue') === '1';
+            if (isClue && evId) {
+                collectEvidence(evId);
+            } else {
+                rowBtn.classList.add('normal-checked');
             }
         };
     });
+
+    mount.querySelectorAll('[data-collect-id]').forEach((colBtn) => {
+        colBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const evId = colBtn.getAttribute('data-collect-id');
+            if (evId) collectEvidence(evId);
+        };
+    });
+
+    // 頂部工具列按鈕：證物袋、搜查雷達、全螢幕沉浸模式、前往詢問證人
+    const bagBtn = mount.querySelector('[data-action="open-bag"]');
+    if (bagBtn) {
+        bagBtn.onclick = (e) => {
+            e.preventDefault();
+            window.__activeBoardId = null;
+            window.__bagOpen = !window.__bagOpen;
+            mount.querySelectorAll('.board-overlay').forEach((ov) => {
+                ov.classList.toggle('open', window.__bagOpen && ov.getAttribute('data-board-id') === 'BAG');
+            });
+        };
+    }
+
+    const radarBtn = mount.querySelector('[data-action="toggle-radar"]');
+    if (radarBtn) {
+        radarBtn.onclick = (e) => {
+            e.preventDefault();
+            window.__museumRadar = !wrapper.classList.contains('radar-on');
+            wrapper.classList.toggle('radar-on', window.__museumRadar);
+            syncButtons();
+        };
+    }
+
+    const fsBtn = mount.querySelector('[data-action="toggle-fs"]');
+    if (fsBtn) {
+        fsBtn.onclick = async (e) => {
+            e.preventDefault();
+            const nextState = !wrapper.classList.contains('is-fullscreen');
+            window.__museumFullscreen = nextState;
+            wrapper.classList.toggle('is-fullscreen', nextState);
+            try {
+                if (nextState && wrapper.requestFullscreen) {
+                    await wrapper.requestFullscreen();
+                } else if (!nextState && document.fullscreenElement && document.exitFullscreen) {
+                    await document.exitFullscreen();
+                }
+            } catch (_) {
+                // 使用 CSS fixed 全畫面模式作為穩定後備
+            }
+            syncButtons();
+        };
+    }
+
+    const gotoWitnessBtn = mount.querySelector('[data-action="goto-witness"]');
+    if (gotoWitnessBtn) {
+        gotoWitnessBtn.onclick = (e) => {
+            e.preventDefault();
+            window.__museumFullscreen = false;
+            wrapper.classList.remove('is-fullscreen');
+            setTriggerValue('clicked', 'GOTO_WITNESS');
+        };
+    }
 }
 """
 
@@ -369,29 +1053,30 @@ st.set_page_config(
     page_title="AI 逆轉法庭｜證詞的破綻",
     page_icon="⚖️",
     layout="wide",
-    initial_sidebar_state="auto",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown(
     """
     <style>
-    .block-container { max-width: 1180px; padding-top: 1.5rem; padding-bottom: 4rem; }
+    .block-container { max-width: 1440px; padding-top: 2.2rem; padding-bottom: 3rem; }
     .hero {
-        padding: 1.5rem 1.8rem; border: 1px solid #5A4A33; border-radius: 18px;
+        padding: 1.05rem 1.4rem; border: 1px solid #5A4A33; border-radius: 16px;
         background: linear-gradient(115deg, #1C2025 0%, #29251F 60%, #33291D 100%);
-        margin-bottom: 1rem;
+        margin-bottom: 0.75rem;
+        display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem;
     }
-    .hero-kicker { color: #DAB76A; letter-spacing: .14em; font-size: .78rem; font-weight: 700; }
-    .hero h1 { margin: .25rem 0 .2rem; color: #F8F2E8; font-size: 2.2rem; }
-    .hero p { margin: 0; color: #D2C8B7; font-size: 1.02rem; }
-    .badge-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .85rem; }
+    .hero-kicker { color: #DAB76A; letter-spacing: .14em; font-size: .72rem; font-weight: 700; }
+    .hero h1 { margin: .15rem 0 .1rem; color: #F8F2E8; font-size: 1.75rem; }
+    .hero p { margin: 0; color: #D2C8B7; font-size: 0.94rem; }
+    .badge-row { display: flex; flex-wrap: wrap; gap: .45rem; }
     .case-badge {
         background: rgba(218, 183, 106, 0.14); border: 1px solid rgba(218, 183, 106, 0.4);
-        color: #F3E3BE; padding: .28rem .7rem; border-radius: 999px; font-size: .84rem;
+        color: #F3E3BE; padding: .24rem .65rem; border-radius: 999px; font-size: .8rem;
     }
     .guide-banner {
         background: #1D2127; border-left: 4px solid #DAB76A; border-radius: 10px;
-        padding: .85rem 1.1rem; margin-bottom: 1rem; color: #E5DEC9; font-size: .95rem;
+        padding: .7rem 1rem; margin-bottom: .75rem; color: #E5DEC9; font-size: .92rem;
     }
     .witness-name { color: #E6C882; font-size: 1.15rem; font-weight: 700; margin-top: .35rem; }
     .tag-pill {
@@ -430,9 +1115,9 @@ st.markdown(
     /* 換行後圖片不要撐得太高 */
     div[data-testid="stImage"] img { max-height: 280px; object-fit: cover; object-position: top; }
     @media (max-width: 640px) {
-        .block-container { padding-left: 1rem; padding-right: 1rem; }
-        .hero { padding: 1.2rem; }
-        .hero h1 { font-size: 1.75rem; }
+        .block-container { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .hero { padding: 0.9rem 1rem; }
+        .hero h1 { font-size: 1.45rem; }
     }
     </style>
     """,
@@ -441,10 +1126,10 @@ st.markdown(
 
 PAGES = ["案件卷宗", "詢問證人", "證據攻防", "最後推理"]
 PAGE_GUIDES = {
-    "案件卷宗": "💡 <b>步驟 1｜現場探索與案件卷宗</b>：在下方 <b>2D 美術館場景中點擊 5 個可疑物件熱區</b>（門禁電腦、警報控制面板、清潔勤務筆記本、桌上出庫單文件、中央畫框）檢視證物詳情並<b>收進卷宗</b>，即可解鎖時間軸與證人追問！",
-    "詢問證人": "💡 <b>步驟 2｜詢問三位證人</b>：點選證人切換對象，可用「快捷追問」或自由輸入問題，觀察誰的說法有破綻。調查更多現場物件會解鎖新的追問。",
+    "案件卷宗": "💡 <b>步驟 1｜第一人稱現場搜查</b>：將滑鼠或手指移入下方美術館現場（可開啟右上角<b>「🖥️ 全螢幕沉浸模式」</b>），點擊可疑的螢幕、面板、簿冊、單據或畫框進入<b>近距離檢視看板／拿起報告</b>，並在報告中點選關鍵疑點收進證物袋！",
+    "詢問證人": "💡 <b>步驟 2｜詢問三位證人</b>：點選證人切換對象，可用「快捷追問」或自由輸入問題，觀察誰的說法有破綻。在現場蒐集更多證物會解鎖新的追問。",
     "證據攻防": "💡 <b>步驟 3｜在法庭上提出矛盾</b>：先選一句「說謊或有誤的證詞」，再選一項「能推翻它的證物」，找出 <b>2 項關鍵矛盾</b>！",
-    "最後推理": "💡 <b>步驟 4｜指認犯人並結案</b>：確認已調查完 5 項證物並揭穿 2 項矛盾後，選出真正的犯人與完整證據鏈，說服法官做出無罪判決！",
+    "最後推理": "💡 <b>步驟 4｜指認犯人並結案</b>：確認已蒐集齊 5 項證物並揭穿 2 項矛盾後，選出真正的犯人與完整證據鏈，說服法官做出無罪判決！",
 }
 
 INITIAL_GAME = {
@@ -482,7 +1167,7 @@ def switch_page(target_page: str, witness_id: str | None = None) -> None:
 
 
 def investigate_evidence(evidence_id: str) -> None:
-    """開啟指定證物詳情並將其標記為已調查（收進卷宗）。"""
+    """在玩家於近距離看板／報告畫面完成採證後，將證物收進卷宗。"""
     if evidence_id not in EVIDENCE_BY_ID:
         return
     st.session_state["selected_evidence"] = evidence_id
@@ -492,54 +1177,160 @@ def investigate_evidence(evidence_id: str) -> None:
 
 
 def _on_scene_hotspot_click() -> None:
-    """處理 2D 探索場景熱區點擊事件。"""
+    """處理 2D 沉浸場景內完成採證或跳轉事件。"""
     comp_state = st.session_state.get("museum_scene_2d")
     clicked_id = comp_state.get("clicked") if isinstance(comp_state, dict) else None
-    if clicked_id:
+    if clicked_id == "GOTO_WITNESS":
+        st.session_state["active_page"] = "詢問證人"
+    elif clicked_id:
         investigate_evidence(clicked_id)
 
 
-def build_museum_scene_html(viewed_ids: list[str], selected_id: str | None) -> str:
-    """組裝 2D 美術館探索場景與 5 個可點擊物件熱區 HTML。"""
-    bg_uri = get_image_data_uri(SCENE_IMAGES["museum"]) or ""
+def build_museum_scene_html(viewed_ids: list[str]) -> str:
+    """組裝全螢幕 2D 美術館調查空間與 5 個第一人稱「拿起報告／查看看板」檢視畫面。"""
+    bg_uri = get_image_data_uri(SCENE_IMAGES["museum"], max_width=1376) or ""
     hotspots_html = []
+    boards_html = []
+    bag_cards_html = []
+
     for item in EVIDENCE:
         ev_id = item["id"]
         is_visited = ev_id in viewed_ids
-        is_active = ev_id == selected_id
-        state_cls = "visited" if is_visited else "unvisited"
-        if is_active:
-            state_cls += " active"
-        status_label = "✅ 已調查" if is_visited else "🔍 點擊調查"
-        if is_active:
-            status_label = "👁️ 檢視中 · 已調查" if is_visited else "👁️ 檢視中"
+        board_cfg = CLOSEUP_BOARDS[ev_id]
         prop_svg = HOTSPOT_PROP_SVGS.get(ev_id, "")
+        ev_img_uri = get_image_data_uri(item["image"], max_width=640) or ""
+
+        state_cls = "visited" if is_visited else "unvisited"
+        glint_symbol = "✓" if is_visited else "✦"
+        hover_text = f"✓ 已採證：{item['title']}（點擊再次拿起檢視）" if is_visited else board_cfg["hover_prompt"]
+
         hotspots_html.append(
-            f"<button type='button' class='scene-hotspot {state_cls}' "
-            f"data-evidence-id='{ev_id}' "
+            f"<button type='button' class='scene-spot {state_cls}' "
+            f"data-open-spot='{ev_id}' "
             f"style='left: {item['hotspot_x']}%; top: {item['hotspot_y']}%;' "
-            f"title='點擊調查：{item['object_name']}（{item['title']}）'>"
-            f"<div class='hotspot-prop'>{prop_svg}</div>"
-            f"<div class='hotspot-title'>{ev_id}｜{item['object_short']}</div>"
-            f"<span class='hotspot-status'>{status_label}</span>"
+            f"aria-label='{hover_text}'>"
+            f"<span class='spot-hover-tip'>{hover_text}</span>"
+            f"<div class='spot-prop'>{prop_svg}<span class='spot-glint'>{glint_symbol}</span></div>"
             f"</button>"
         )
+
+        rows_html = []
+        for row in board_cfg["rows"]:
+            is_clue_attr = "1" if row["is_clue"] else "0"
+            rows_html.append(
+                f"<button type='button' class='board-row' data-row-ev='{ev_id}' data-is-clue='{is_clue_attr}'>"
+                f"<div class='board-row-label'><span>{row['label']}</span><span class='row-tag'></span></div>"
+                f"<div class='board-row-val'>{row['value']}</div>"
+                f"</button>"
+            )
+
+        collected_cls = "is-collected" if is_visited else ""
+        collect_btn_label = (
+            f"✅ 已收進證物袋（{ev_id} {item['title']}）"
+            if is_visited
+            else "📥 標記可疑紀錄並收進證物袋"
+        )
+
+        boards_html.append(
+            f"<div class='board-overlay' data-board-id='{ev_id}'>"
+            f"<div class='board-sheet theme-{board_cfg['board_theme']} {collected_cls}' data-sheet-id='{ev_id}'>"
+            f"<div class='board-top'>"
+            f"<div>"
+            f"<div class='board-kicker'>{board_cfg['header_kicker']}</div>"
+            f"<div class='board-title'>{board_cfg['header_title']}</div>"
+            f"<div class='board-sub'>{board_cfg['header_sub']}</div>"
+            f"</div>"
+            f"<button type='button' class='board-close-btn' data-close-board='1'>↩️ 放回原處 · 返回現場</button>"
+            f"</div>"
+            f"<div class='board-instruction'>{board_cfg['instruction']}</div>"
+            f"<div class='board-body'>"
+            f"<div class='board-photo-box'>"
+            f"<img src='{ev_img_uri}' alt='現場實物特寫'/>"
+            f"<div class='board-photo-cap'>📍 現場位置：{item['scene_spot']}</div>"
+            f"</div>"
+            f"<div class='board-rows'>{''.join(rows_html)}</div>"
+            f"</div>"
+            f"<div class='board-conclusion'>"
+            f"<strong>🖍️ 採證筆記（已收錄為卷宗證物 {ev_id}｜{item['title']}）：</strong><br/>"
+            f"{item['detail']}"
+            f"</div>"
+            f"<div class='board-footer'>"
+            f"<button type='button' class='collect-action-btn' data-collect-id='{ev_id}'>{collect_btn_label}</button>"
+            f"<button type='button' class='board-close-btn' data-close-board='1'>🔍 繼續在展廳尋找其他線索</button>"
+            f"</div>"
+            f"</div>"
+            f"</div>"
+        )
+
+        if is_visited:
+            bag_cards_html.append(
+                f"<div class='bag-card'>"
+                f"<div style='font-size:0.76rem;color:#7EE787;font-weight:700;'>✅ 已採證收錄 · {item['tag']}</div>"
+                f"<div style='font-size:1rem;font-weight:800;color:#F3E3BE;'>{ev_id}｜{item['title']}</div>"
+                f"<div style='font-size:0.82rem;color:#D2C8B7;line-height:1.4;'>{item['detail']}</div>"
+                f"<button type='button' class='hud-btn' data-open-spot='{ev_id}' style='margin-top:auto;align-self:flex-start;'>"
+                f"🖐️ 再次拿起報告檢視</button>"
+                f"</div>"
+            )
+        else:
+            bag_cards_html.append(
+                "<div class='bag-card locked'>"
+                "<div style='font-size:0.76rem;color:#DAB76A;font-weight:700;'>❓ 尚未發現的現場證物</div>"
+                "<div style='font-size:0.95rem;font-weight:700;color:#9CA3AF;'>未知現場線索</div>"
+                "<div style='font-size:0.8rem;color:#8B949E;line-height:1.4;'>"
+                "請在 2F B 展廳現場點擊可疑的螢幕、牆面面板、長椅簿冊、桌上單據或中央畫框進行搜查採證。"
+                "</div>"
+                "</div>"
+            )
+
+    all_done_btn = (
+        "<button type='button' class='hud-btn primary' data-action='goto-witness'>"
+        "⚖️ 5 項證物已齊全！前往詢問證人 ➔</button>"
+        if len(viewed_ids) == len(EVIDENCE)
+        else ""
+    )
+
+    bag_overlay_html = (
+        "<div class='board-overlay' data-board-id='BAG'>"
+        "<div class='board-sheet theme-terminal'>"
+        "<div class='board-top'>"
+        "<div>"
+        "<div class='board-kicker'>DEFENSE ATTORNEY EVIDENCE BAG</div>"
+        f"<div class='board-title'>🗂️ 辯護律師證物袋（已採證 {len(viewed_ids)} / {len(EVIDENCE)} 項）</div>"
+        "<div class='board-sub'>你在現場親自翻閱並標記可疑處的報告與紀錄會收納於此，供法庭詰問與出示使用。</div>"
+        "</div>"
+        "<button type='button' class='board-close-btn' data-close-board='1'>↩️ 返回展廳現場</button>"
+        "</div>"
+        f"<div class='bag-grid'>{''.join(bag_cards_html)}</div>"
+        "</div>"
+        "</div>"
+    )
 
     return (
         "<div class='scene-wrapper'>"
         "<div class='scene-topbar'>"
         "<div class='scene-topbar-title'>"
-        f"<span>🕵️ 2F B 展廳與相關現場物件調查空間（已收進卷宗：{len(viewed_ids)} / {len(EVIDENCE)}）</span>"
+        "<span>🕵️ 市立霧港美術館 · 2F B 展廳封鎖現場</span>"
+        f"<span class='hud-pill'>🗂️ 已採證：{len(viewed_ids)} / {len(EVIDENCE)}</span>"
         "</div>"
-        "<div class='scene-legend'>"
-        "<span class='legend-dot'>🟡 待調查熱區</span>"
-        "<span class='legend-dot'>🟢 已調查（已收進卷宗）</span>"
-        "<span class='legend-dot'>✨ 目前檢視物件</span>"
+        "<div class='scene-actions'>"
+        f"{all_done_btn}"
+        f"<button type='button' class='hud-btn' data-action='open-bag'>🗂️ 打開證物袋 ({len(viewed_ids)}/{len(EVIDENCE)})</button>"
+        "<button type='button' class='hud-btn' data-action='toggle-radar'>💡 搜查提示光圈</button>"
+        "<button type='button' class='hud-btn primary' data-action='toggle-fs'>🖥️ 全螢幕沉浸模式</button>"
         "</div>"
         "</div>"
         "<div class='scene-canvas'>"
+        "<div class='scene-stage'>"
         f"<img class='scene-bg' src='{bg_uri}' alt='市立霧港美術館 2F B 展廳調查場景'/>"
+        "<div class='scene-flashlight'></div>"
         f"{''.join(hotspots_html)}"
+        "<div class='scene-bottom-hint'>"
+        "🔎 移動游標探索展廳，點擊現場可疑物件<b>拿起報告／查看面板</b>，並在報告中點選疑點完成蒐證"
+        "</div>"
+        "</div>"
+        f"{''.join(boards_html)}"
+        f"{bag_overlay_html}"
         "</div>"
         "</div>"
     )
@@ -557,14 +1348,14 @@ api_enabled = bool(get_api_key())
 st.markdown(
     f"""
     <section class="hero">
-        <div class="hero-kicker">CASE FILE 01 · INTERACTIVE COURTROOM MYSTERY</div>
-        <h1>⚖️ AI 逆轉法庭：證詞的破綻</h1>
-        <p>案件《{CASE_TITLE}》—— 透過 2D 現場探索、AI 證人詰問與法庭證物對決，找出真兇！</p>
+        <div>
+            <div class="hero-kicker">CASE FILE 01 · INTERACTIVE COURTROOM MYSTERY</div>
+            <h1>⚖️ AI 逆轉法庭：證詞的破綻 —《{CASE_TITLE}》</h1>
+        </div>
         <div class="badge-row">
             <span class="case-badge">🖼️ 失竊畫作：《{ARTWORK_NAME}》</span>
-            <span class="case-badge">📍 案發地點：市立霧港美術館 2F B 展廳</span>
-            <span class="case-badge">🧑‍🔧 被告委託人：清潔員 王冠宇</span>
-            <span class="case-badge">⚖️ 你的角色：被告辯護律師</span>
+            <span class="case-badge">📍 市立霧港美術館 2F B 展廳</span>
+            <span class="case-badge">🧑‍🔧 委託人：清潔員 王冠宇</span>
         </div>
     </section>
     """,
@@ -577,15 +1368,17 @@ with st.sidebar:
     clue_done = len(game["found_clues"]) == len(REQUIRED_CLUES)
     st.progress((len(game["viewed_evidence"]) + len(game["found_clues"])) / (len(EVIDENCE) + len(REQUIRED_CLUES)))
     st.markdown(
-        f"- {'✅' if ev_done else '⏳'} **步驟 1｜現場探索與證物**：`{len(game['viewed_evidence'])} / {len(EVIDENCE)}`\n"
+        f"- {'✅' if ev_done else '⏳'} **步驟 1｜現場蒐證**：`{len(game['viewed_evidence'])} / {len(EVIDENCE)}`\n"
         f"- 💬 **步驟 2｜詢問證人**：可隨時追問\n"
         f"- {'✅' if clue_done else '⏳'} **步驟 3｜成立矛盾**：`{len(game['found_clues'])} / {len(REQUIRED_CLUES)}`\n"
         f"- ⚠️ **錯誤出示次數**：`{game['wrong_challenges']} / {MAX_WRONG_CHALLENGES}`"
     )
-    with st.expander("🔍 現場物件調查狀態", expanded=True):
-        for item in EVIDENCE:
-            done_mark = "✅ 已調查" if item["id"] in game["viewed_evidence"] else "⏳ 待調查"
-            st.caption(f"{done_mark}｜**{item['id']} {item['object_short']}**")
+    with st.expander("🗂️ 已採證卷宗清單", expanded=True):
+        for idx, item in enumerate(EVIDENCE, start=1):
+            if item["id"] in game["viewed_evidence"]:
+                st.caption(f"✅ **{item['id']}｜{item['title']}**")
+            else:
+                st.caption(f"❓ **現場線索 #{idx}**｜*尚未在展廳發現*")
     st.divider()
     if api_enabled:
         st.success(f"🤖 Gemini 對話已啟用 · {MODEL_NAME}")
@@ -595,13 +1388,13 @@ with st.sidebar:
     if st.button("🔄 重新開始本局", use_container_width=True):
         start_game()
 
-# 頂部四步驟快速切換按鈕列（讓玩家不用找側邊欄也能一鍵切換流程）
+# 頂部四步驟快速切換按鈕列
 nav_cols = st.container(key="top-nav").columns(4)
 step_labels = [
-    f"① 卷宗 {len(game['viewed_evidence'])}/{len(EVIDENCE)}",
-    "② 詢問",
-    f"③ 攻防 {len(game['found_clues'])}/{len(REQUIRED_CLUES)}",
-    "④ 推理",
+    f"① 現場與卷宗 {len(game['viewed_evidence'])}/{len(EVIDENCE)}",
+    "② 詢問證人",
+    f"③ 法庭攻防 {len(game['found_clues'])}/{len(REQUIRED_CLUES)}",
+    "④ 最終推理",
 ]
 for idx, (col, target_page, label) in enumerate(zip(nav_cols, PAGES, step_labels)):
     with col:
@@ -637,7 +1430,6 @@ def fallback_witness_reply(witness_id: str, question: str) -> str:
     """依問題主題挑選備援台詞；與本案無關就回「無關」類台詞，並避免連續重複同一句。"""
     q = question.lower()
     pools = FALLBACK_REPLIES[witness_id]
-    # 選命中關鍵字最多的主題，避免「清潔車」這類順帶提到的詞搶走真正的問題重點
     candidates = None
     best_hits = 0
     for topic in pools["topics"]:
@@ -706,241 +1498,101 @@ def submit_witness_question(witness_id: str, clean_question: str, *, use_ai: boo
 
 
 if page == "案件卷宗":
-    exp_head_col1, exp_head_col2 = st.columns([2.3, 1.0])
-    with exp_head_col1:
-        st.subheader(
-            f"🕵️ 現場探索：市立霧港美術館 2D 調查空間（已調查 {len(game['viewed_evidence'])} / {len(EVIDENCE)} 項）"
-        )
-        st.caption(
-            "直接點擊下方 2D 場景中的發光物件熱區（電腦監控、警報面板、勤務筆記本、出庫單文件、中央畫框），"
-            "即可開啟證物詳情並收進卷宗；點擊物件與閱讀證物不消耗 AI 額度。"
-        )
-    with exp_head_col2:
-        if len(game["viewed_evidence"]) < len(EVIDENCE):
-            if st.button("📥 一鍵調查全部物件並收進卷宗", type="secondary", use_container_width=True):
-                game["viewed_evidence"] = [item["id"] for item in EVIDENCE]
-                if not st.session_state.get("selected_evidence"):
-                    st.session_state["selected_evidence"] = EVIDENCE[0]["id"]
-                st.rerun()
-        else:
-            st.success("✅ 5 項現場物件已全數調查完畢！")
-
-    selected_ev_id = st.session_state.get("selected_evidence")
-    scene_html = build_museum_scene_html(game["viewed_evidence"], selected_ev_id)
+    # 頂部直接呈現大型 2D 美術館沉浸探索空間（支援一鍵全螢幕與第一人稱拿起報告採證）
+    scene_html = build_museum_scene_html(game["viewed_evidence"])
     scene_result = MUSEUM_SCENE_COMPONENT(
         key="museum_scene_2d",
         data=scene_html,
         on_clicked_change=_on_scene_hotspot_click,
     )
-    if scene_result.clicked and (
-        st.session_state.get("selected_evidence") != scene_result.clicked
-        or scene_result.clicked not in game["viewed_evidence"]
-    ):
+    if scene_result.clicked == "GOTO_WITNESS":
+        switch_page("詢問證人")
+    elif scene_result.clicked and scene_result.clicked not in game["viewed_evidence"]:
         investigate_evidence(scene_result.clicked)
         st.rerun()
 
-    # 場景下方同步提供手機／鍵盤友善的物件快速切換列
-    st.caption("👇 也可點選下方現場物件按鈕開啟詳情並收進卷宗：")
-    hotspot_btn_cols = st.columns(5, gap="small")
-    for col, item in zip(hotspot_btn_cols, EVIDENCE):
-        with col:
-            is_visited = item["id"] in game["viewed_evidence"]
-            is_active = st.session_state.get("selected_evidence") == item["id"]
-            prefix = "✅" if is_visited else "🔍"
-            if st.button(
-                f"{prefix} {item['id']} {item['object_short']}",
-                key=f"quick_spot_{item['id']}",
-                type="primary" if is_active else "secondary",
-                use_container_width=True,
-            ):
-                investigate_evidence(item["id"])
-                st.rerun()
+    st.divider()
+    info_tab1, info_tab2, info_tab3 = st.tabs(
+        [
+            f"🗂️ 已收進證物袋的卷宗（{len(game['viewed_evidence'])} / {len(EVIDENCE)}）",
+            "⏱️ 案件背景與當晚時間軸",
+            "👥 三位關鍵證人與公開證詞",
+        ]
+    )
 
-    # 證物詳情資訊卡（點擊場景熱區後立即於場景下方展示）
-    active_ev_id = st.session_state.get("selected_evidence")
-    with st.container(border=True):
-        if active_ev_id and active_ev_id in EVIDENCE_BY_ID:
-            active_item = EVIDENCE_BY_ID[active_ev_id]
-            is_collected = active_ev_id in game["viewed_evidence"]
-            detail_img_col, detail_text_col = st.columns([1.05, 1.45], gap="large")
-            with detail_img_col:
-                ev_img = resolve_asset(active_item["image"])
-                if ev_img:
-                    st.image(
-                        ev_img,
-                        caption=f"現場物件特寫：{active_item['object_name']}（{active_item['title']}）",
-                        use_container_width=True,
-                    )
-            with detail_text_col:
-                status_html = (
-                    "<span class='status-pill-done'>✅ 已調查 · 已收進卷宗</span>"
-                    if is_collected
-                    else "<span class='status-pill-pending'>🔍 待收進卷宗</span>"
-                )
-                st.markdown(
-                    f"{status_html}"
-                    f"<span class='tag-pill'>{active_item['object_icon']} 現場物件：{active_item['object_name']}</span>"
-                    f"<span class='tag-pill'>{active_item['tag']}</span>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown(f"### {active_item['id']}｜{active_item['title']}")
-                st.caption(f"📍 場景位置：{active_item['scene_spot']}　｜　🕒 關鍵時間：{active_item['time_hint']}")
-                st.markdown(f"**🔎 現場勘查紀錄**：{active_item['scene_note']}")
-                st.info(f"📋 **證物鑑定與卷宗細節**：\n\n{active_item['detail']}")
-
-                unlocked_questions = [
-                    f"「{q_text}」（詢問{w['name']}）"
-                    for w in WITNESSES.values()
-                    for q_text, req_ev in w["sample_questions"]
-                    if req_ev == active_ev_id
-                ]
-                if unlocked_questions:
-                    st.caption(f"🔓 **已解鎖證人快捷追問**：{'、'.join(unlocked_questions)}")
-
-                action_c1, action_c2 = st.columns(2)
-                with action_c1:
-                    if is_collected:
-                        st.success("✅ 已收進卷宗（可於法庭攻防出示）")
-                    elif st.button(
-                        "📥 收進卷宗（標記為已調查）",
-                        key=f"collect_detail_{active_ev_id}",
-                        type="primary",
-                        use_container_width=True,
-                    ):
-                        investigate_evidence(active_ev_id)
-                        st.rerun()
-                with action_c2:
-                    unvisited_items = [it for it in EVIDENCE if it["id"] not in game["viewed_evidence"]]
-                    if unvisited_items:
-                        next_item = unvisited_items[0]
-                        if st.button(
-                            f"🔍 調查下一項：{next_item['id']} {next_item['object_short']}",
-                            key=f"next_unvisited_{active_ev_id}",
-                            type="primary",
-                            use_container_width=True,
-                        ):
-                            investigate_evidence(next_item["id"])
-                            st.rerun()
-                    else:
-                        if st.button(
-                            "💬 5 項證物已齊全！前往詢問證人",
-                            key="goto_witness_from_detail",
-                            type="primary",
-                            use_container_width=True,
-                        ):
-                            switch_page("詢問證人")
-        else:
+    with info_tab1:
+        if not game["viewed_evidence"]:
             st.info(
-                "👆 **現場調查面板**：請點擊上方 2D 美術館場景中的任一發光物件熱區"
-                "（**E1 門禁電腦／監控**、**E2 警報控制面板**、**E3 清潔勤務筆記本**、**E4 桌上出庫單文件**、**E5 畫框與檢驗資料**），"
-                "即可在此處開啟證物特寫與詳情，並將證物收進卷宗！"
+                "🕵️ **證物袋目前是空的**：請在上方 2D 美術館現場點擊可疑物件（螢幕、控制面板、長椅上的簿冊、桌上的單據夾或中央畫框），"
+                "進入近距離檢視畫面並點擊報告上的可疑紀錄完成採證！"
             )
-
-    st.divider()
-    scene_col, timeline_col = st.columns([1.25, 1.0], gap="large")
-    with scene_col:
-        st.subheader("🏛️ 案件背景與館內空間配置")
-        st.write(CASE_BACKGROUND)
-        st.info(
-            "🗺️ **館內樓層配置與調查重點**：\n"
-            "- **2F B 展廳**：《海霧港灣》展出位置，設有刷卡門禁電腦與動作感應警報控制面板。\n"
-            "- **1F 西側裝卸區**：大型展品與恆溫運輸箱進出館通道，留有當晚出庫單據。\n"
-            "- **B1 地下器材室**：清潔員王冠宇整理清潔車與主管簽退處，留有清潔勤務簽到簿。"
-        )
-
-    with timeline_col:
-        st.subheader("⏱️ 案發當晚關鍵時間軸")
-        with st.container(border=True):
-            for node in CASE_TIMELINE:
-                unlocked = node["evidence"] is None or node["evidence"] in game["viewed_evidence"]
-                if unlocked:
-                    html = (
-                        f"<div class='timeline-item'><div class='timeline-time'>{node['time']}</div>"
-                        f"<div class='timeline-event'>{node['event']}</div>"
-                        f"<div class='timeline-detail'>{node['detail']}</div></div>"
-                    )
-                else:
-                    html = (
-                        "<div class='timeline-item locked'><div class='timeline-time'>？？：？？</div>"
-                        "<div class='timeline-event'>尚未查證</div>"
-                        "<div class='timeline-detail'>在上方現場探索調查對應物件後解鎖</div></div>"
-                    )
-                st.markdown(html, unsafe_allow_html=True)
-
-    st.divider()
-    st.subheader("👥 三位關鍵證人與公開證詞")
-    st.caption("觀察每位證人聲稱的「時間」與「所在位置」，點擊按鈕即可前往詢問室追問細節。")
-    witness_columns = st.columns(3, gap="medium")
-    for column, (w_id, witness) in zip(witness_columns, WITNESSES.items()):
-        with column:
-            with st.container(border=True):
-                w_img = resolve_asset(witness["image"])
-                if w_img:
-                    st.image(w_img, use_container_width=True)
-                st.markdown(f"<div class='witness-name'>{witness['name']}</div>", unsafe_allow_html=True)
-                st.caption(f"🎯 身分：{witness['role']}　｜　📍 {witness['location']}")
-                st.info(f"🗣️ **公開證詞**：「{witness['statement']}」")
-                if st.button(f"💬 詢問 {witness['name']}", key=f"goto_ask_{w_id}", use_container_width=True):
-                    switch_page("詢問證人", witness_id=w_id)
-
-    st.divider()
-    ev_header_col1, ev_header_col2 = st.columns([2.2, 1.0])
-    with ev_header_col1:
-        st.subheader(f"🗂️ 案件卷宗證物櫃（已調查並收進卷宗 {len(game['viewed_evidence'])} / {len(EVIDENCE)} 項）")
-        st.caption("在上方 2D 現場點擊物件後，證物會自動收進此卷宗，並可在法庭攻防時出示。")
-    with ev_header_col2:
-        if len(game["viewed_evidence"]) < len(EVIDENCE):
-            if st.button("📥 全部收進卷宗", type="primary", use_container_width=True):
-                game["viewed_evidence"] = [item["id"] for item in EVIDENCE]
-                if not st.session_state.get("selected_evidence"):
-                    st.session_state["selected_evidence"] = EVIDENCE[0]["id"]
-                st.rerun()
         else:
-            st.success("✅ 5 項證物已全數收進卷宗！")
+            collected_items = [item for item in EVIDENCE if item["id"] in game["viewed_evidence"]]
+            ev_cols = st.columns(2, gap="medium")
+            for idx, item in enumerate(collected_items):
+                with ev_cols[idx % 2]:
+                    with st.container(border=True):
+                        ev_img = resolve_asset(item["image"])
+                        if ev_img:
+                            st.image(ev_img, use_container_width=True)
+                        st.markdown(
+                            f"<span class='status-pill-done'>✅ 已親自採證收錄</span>"
+                            f"<span class='tag-pill'>{item['tag']}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(f"#### {item['id']}｜{item['title']}")
+                        st.caption(f"📍 採證位置：{item['scene_spot']}　｜　🕒 關鍵時間：{item['time_hint']}")
+                        st.write(item["detail"])
+            remaining = len(EVIDENCE) - len(game["viewed_evidence"])
+            if remaining > 0:
+                st.caption(f"🔎 展廳現場還有 **{remaining} 項尚未發現的證物**，繼續在上方 2D 場景中探索吧！")
+            else:
+                st.success("🎯 5 項現場證物已全數採證完畢！可前往「② 詢問證人」或「③ 法庭攻防」。")
 
-    ev_cols = st.columns(2, gap="medium")
-    for idx, item in enumerate(EVIDENCE):
-        with ev_cols[idx % 2]:
+    with info_tab2:
+        scene_col, timeline_col = st.columns([1.2, 1.0], gap="large")
+        with scene_col:
+            st.subheader("🏛️ 案件背景")
+            st.write(CASE_BACKGROUND)
+            st.info(
+                "🗺️ **館內空間結構**：\n"
+                "- **2F B 展廳**：《海霧港灣》展出位置，設有門禁電腦與防盜警報面板。\n"
+                "- **1F 西側裝卸區**：大型展品與運輸箱出入館通道。\n"
+                "- **B1 地下器材室**：清潔員王冠宇整理清潔車與主管簽退處。"
+            )
+        with timeline_col:
+            st.subheader("⏱️ 案發當晚時間軸（隨現場採證自動解鎖）")
             with st.container(border=True):
-                is_collected = item["id"] in game["viewed_evidence"]
-                ev_img = resolve_asset(item["image"])
-                if ev_img:
-                    st.image(ev_img, use_container_width=True)
-                status_badge = (
-                    "<span class='status-pill-done'>✅ 已調查 · 已收進卷宗</span>"
-                    if is_collected
-                    else "<span class='status-pill-pending'>🔍 待調查物件</span>"
-                )
-                st.markdown(
-                    f"{status_badge}"
-                    f"<span class='tag-pill'>{item['object_icon']} {item['object_name']}</span>"
-                    f"<span class='tag-pill'>{item['tag']}</span>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown(f"#### {item['id']}｜{item['title']}")
-                st.caption(f"📍 {item['scene_spot']}　｜　🕒 {item['time_hint']}")
-                if is_collected:
-                    st.write(item["detail"])
-                    if st.button(
-                        "👁️ 在上方現場調查面板檢視",
-                        key=f"focus_{item['id']}",
-                        use_container_width=True,
-                    ):
-                        st.session_state["selected_evidence"] = item["id"]
-                        st.rerun()
-                else:
-                    st.caption(f"💡 點擊上方 2D 場景中的「{item['object_name']}」或下方按鈕即可調查並收進卷宗。")
-                    if st.button(
-                        "📥 調查物件並收進卷宗",
-                        key=f"read_{item['id']}",
-                        type="primary",
-                        use_container_width=True,
-                    ):
-                        investigate_evidence(item["id"])
-                        st.rerun()
+                for node in CASE_TIMELINE:
+                    unlocked = node["evidence"] is None or node["evidence"] in game["viewed_evidence"]
+                    if unlocked:
+                        html = (
+                            f"<div class='timeline-item'><div class='timeline-time'>{node['time']}</div>"
+                            f"<div class='timeline-event'>{node['event']}</div>"
+                            f"<div class='timeline-detail'>{node['detail']}</div></div>"
+                        )
+                    else:
+                        html = (
+                            "<div class='timeline-item locked'><div class='timeline-time'>？？：？？</div>"
+                            "<div class='timeline-event'>尚未查證的時段</div>"
+                            "<div class='timeline-detail'>在現場找到並採集對應證物後自動解鎖</div></div>"
+                        )
+                    st.markdown(html, unsafe_allow_html=True)
 
-    if len(game["viewed_evidence"]) == len(EVIDENCE):
-        st.info("🎯 你已調查完所有現場物件並收進卷宗！接下來可前往 **② 詢問證人** 追問細節，或直接前往 **③ 證據攻防** 指出證詞矛盾。")
+    with info_tab3:
+        st.caption("觀察每位證人聲稱的「時間」與「所在位置」，點擊按鈕即可前往詢問室追問細節。")
+        witness_columns = st.columns(3, gap="medium")
+        for column, (w_id, witness) in zip(witness_columns, WITNESSES.items()):
+            with column:
+                with st.container(border=True):
+                    w_img = resolve_asset(witness["image"])
+                    if w_img:
+                        st.image(w_img, use_container_width=True)
+                    st.markdown(f"<div class='witness-name'>{witness['name']}</div>", unsafe_allow_html=True)
+                    st.caption(f"🎯 身分：{witness['role']}　｜　📍 {witness['location']}")
+                    st.info(f"🗣️ **公開證詞**：「{witness['statement']}」")
+                    if st.button(f"💬 詢問 {witness['name']}", key=f"goto_ask_{w_id}", use_container_width=True):
+                        switch_page("詢問證人", witness_id=w_id)
 
 elif page == "詢問證人":
     st.subheader("💬 證人詢問室")
