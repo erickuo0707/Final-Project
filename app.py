@@ -1,3 +1,4 @@
+import base64
 import random
 from copy import deepcopy
 from pathlib import Path
@@ -30,6 +31,7 @@ from game_data import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent
+EVIDENCE_BY_ID = {item["id"]: item for item in EVIDENCE}
 
 
 def resolve_asset(rel_path: str) -> str | None:
@@ -37,6 +39,274 @@ def resolve_asset(rel_path: str) -> str | None:
     full_path = BASE_DIR / rel_path
     return str(full_path) if full_path.exists() else None
 
+
+@st.cache_data(show_spinner=False)
+def get_image_data_uri(rel_path: str) -> str | None:
+    """將圖片轉為 base64 Data URI 供 2D 互動探索場景穩定載入。"""
+    full_path = BASE_DIR / rel_path
+    if not full_path.exists():
+        return None
+    encoded = base64.b64encode(full_path.read_bytes()).decode("ascii")
+    return f"data:image/jpeg;base64,{encoded}"
+
+
+HOTSPOT_PROP_SVGS = {
+    "E1": (
+        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
+        "<rect x='4' y='3' width='48' height='30' rx='4' fill='#141B22' stroke='#DAB76A' stroke-width='2'/>"
+        "<rect x='8' y='7' width='24' height='22' rx='2' fill='#1E2B36'/>"
+        "<circle cx='20' cy='14' r='3.5' fill='#9FB8C8'/>"
+        "<path d='M14 26 C14 20 26 20 26 26 Z' fill='#9FB8C8'/>"
+        "<line x1='35' y1='11' x2='48' y2='11' stroke='#56D364' stroke-width='2.2'/>"
+        "<line x1='35' y1='17' x2='46' y2='17' stroke='#DAB76A' stroke-width='2'/>"
+        "<line x1='35' y1='23' x2='44' y2='23' stroke='#DAB76A' stroke-width='2'/>"
+        "<path d='M22 33 L34 33 L38 39 L18 39 Z' fill='#5A4A33'/>"
+        "</svg>"
+    ),
+    "E2": (
+        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
+        "<rect x='5' y='4' width='46' height='34' rx='4' fill='#1B1F24' stroke='#DAB76A' stroke-width='2'/>"
+        "<rect x='10' y='8' width='36' height='11' rx='2' fill='#2E2214' stroke='#E09F3E' stroke-width='1.2'/>"
+        "<text x='28' y='16' text-anchor='middle' fill='#F3C663' font-size='7' font-weight='700'>BYPASS</text>"
+        "<circle cx='13' cy='25' r='2.2' fill='#56D364'/>"
+        "<circle cx='13' cy='31' r='2.2' fill='#F3C663'/>"
+        "<rect x='22' y='23' width='6' height='4.5' rx='1' fill='#3B434E'/>"
+        "<rect x='30' y='23' width='6' height='4.5' rx='1' fill='#3B434E'/>"
+        "<rect x='38' y='23' width='6' height='4.5' rx='1' fill='#3B434E'/>"
+        "<rect x='22' y='29.5' width='6' height='4.5' rx='1' fill='#3B434E'/>"
+        "<rect x='30' y='29.5' width='6' height='4.5' rx='1' fill='#3B434E'/>"
+        "<rect x='38' y='29.5' width='6' height='4.5' rx='1' fill='#C97A3E'/>"
+        "</svg>"
+    ),
+    "E3": (
+        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
+        "<rect x='11' y='5' width='34' height='34' rx='3' fill='#6A4E2F' stroke='#DAB76A' stroke-width='2'/>"
+        "<rect x='15' y='9' width='26' height='27' rx='1.5' fill='#F3EAD8'/>"
+        "<rect x='22' y='2.5' width='12' height='5' rx='2' fill='#C8A96A'/>"
+        "<line x1='19' y1='15' x2='37' y2='15' stroke='#4A4033' stroke-width='2'/>"
+        "<line x1='19' y1='21' x2='35' y2='21' stroke='#7A6B58' stroke-width='1.8'/>"
+        "<line x1='19' y1='26' x2='33' y2='26' stroke='#7A6B58' stroke-width='1.8'/>"
+        "<circle cx='34' cy='30' r='4.2' fill='none' stroke='#C94A4A' stroke-width='1.8'/>"
+        "</svg>"
+    ),
+    "E4": (
+        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
+        "<path d='M8 9 L22 9 L26 13 L48 13 L48 36 L8 36 Z' fill='#3D3020' stroke='#DAB76A' stroke-width='2'/>"
+        "<rect x='14' y='6' width='28' height='26' rx='2' fill='#EFE4CE' stroke='#8C734B' stroke-width='1.5'/>"
+        "<line x1='18' y1='12' x2='38' y2='12' stroke='#3A3125' stroke-width='2'/>"
+        "<line x1='18' y1='18' x2='35' y2='18' stroke='#6E5D47' stroke-width='1.8'/>"
+        "<line x1='18' y1='23' x2='32' y2='23' stroke='#6E5D47' stroke-width='1.8'/>"
+        "<rect x='29' y='21' width='11' height='7' rx='1' transform='rotate(-12 34 24)' fill='none' stroke='#C94A4A' stroke-width='1.8'/>"
+        "</svg>"
+    ),
+    "E5": (
+        "<svg viewBox='0 0 56 42' aria-hidden='true'>"
+        "<rect x='6' y='5' width='34' height='28' rx='2.5' fill='#232931' stroke='#DAB76A' stroke-width='2.5'/>"
+        "<rect x='10' y='9' width='26' height='20' fill='#1A2028'/>"
+        "<text x='23' y='22' text-anchor='middle' fill='#E06C75' font-size='8' font-weight='800'>R-07</text>"
+        "<circle cx='39' cy='24' r='8' fill='rgba(96, 165, 250, 0.22)' stroke='#F3E3BE' stroke-width='2.2'/>"
+        "<line x1='45' y1='30' x2='51' y2='36' stroke='#DAB76A' stroke-width='3' stroke-linecap='round'/>"
+        "</svg>"
+    ),
+}
+
+SCENE_COMPONENT_CSS = """
+* { box-sizing: border-box; }
+.scene-wrapper {
+    border: 1.5px solid #5A4A33;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #14171C;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.scene-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    background: linear-gradient(90deg, #1A1E24 0%, #26211A 100%);
+    border-bottom: 1px solid #483B28;
+    color: #EAE1D0;
+    font-size: 0.85rem;
+}
+.scene-topbar-title {
+    font-weight: 700;
+    color: #F3E3BE;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+.scene-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    font-size: 0.78rem;
+    color: #C9BFA8;
+}
+.legend-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+.scene-canvas {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1376 / 768;
+    background: #0F1216;
+    overflow: hidden;
+}
+.scene-bg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: fill;
+    user-select: none;
+    pointer-events: none;
+}
+@keyframes hotspotPulse {
+    0% { box-shadow: 0 0 0 0 rgba(218, 183, 106, 0.55), 0 6px 18px rgba(0, 0, 0, 0.75); }
+    70% { box-shadow: 0 0 0 9px rgba(218, 183, 106, 0), 0 6px 18px rgba(0, 0, 0, 0.75); }
+    100% { box-shadow: 0 0 0 0 rgba(218, 183, 106, 0), 0 6px 18px rgba(0, 0, 0, 0.75); }
+}
+.scene-hotspot {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: max-content;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0.42rem 0.68rem;
+    border-radius: 12px;
+    background: rgba(18, 21, 26, 0.86);
+    backdrop-filter: blur(4px);
+    color: #F8F2E8;
+    cursor: pointer;
+    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+    text-align: center;
+    z-index: 2;
+}
+.scene-hotspot.unvisited {
+    border: 1.8px solid #DAB76A;
+    animation: hotspotPulse 2.4s infinite;
+}
+.scene-hotspot.visited {
+    border: 1.8px solid #3FB950;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.72);
+}
+.scene-hotspot.active {
+    border: 2px solid #FCE592;
+    background: rgba(38, 32, 22, 0.94);
+    box-shadow: 0 0 0 3px rgba(252, 229, 146, 0.42), 0 10px 26px rgba(0, 0, 0, 0.88);
+    transform: translate(-50%, -50%) scale(1.05);
+    z-index: 5;
+}
+.scene-hotspot:hover,
+.scene-hotspot:focus-visible {
+    transform: translate(-50%, -50%) scale(1.06);
+    background: rgba(34, 29, 21, 0.95);
+    outline: none;
+    z-index: 6;
+}
+.hotspot-prop {
+    width: 44px;
+    height: 33px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.hotspot-prop svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.hotspot-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #F7EFE2;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.hotspot-status {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+.scene-hotspot.unvisited .hotspot-status {
+    background: rgba(218, 183, 106, 0.2);
+    color: #F5D284;
+    border: 1px solid rgba(218, 183, 106, 0.5);
+}
+.scene-hotspot.visited .hotspot-status {
+    background: rgba(63, 185, 80, 0.2);
+    color: #7EE787;
+    border: 1px solid rgba(63, 185, 80, 0.5);
+}
+@media (max-width: 680px) {
+    .scene-topbar {
+        padding: 0.45rem 0.7rem;
+        font-size: 0.75rem;
+    }
+    .scene-legend {
+        font-size: 0.7rem;
+        gap: 0.45rem;
+    }
+    .scene-hotspot {
+        padding: 0.2rem 0.35rem;
+        gap: 0.08rem;
+        border-radius: 8px;
+    }
+    .hotspot-prop {
+        width: 24px;
+        height: 18px;
+    }
+    .hotspot-title {
+        font-size: 0.58rem;
+        line-height: 1.1;
+    }
+    .hotspot-status {
+        font-size: 0.52rem;
+        padding: 0.04rem 0.26rem;
+    }
+}
+"""
+
+SCENE_COMPONENT_JS = """
+export default function(component) {
+    const { data, setTriggerValue, parentElement } = component;
+    let mount = parentElement.querySelector('.museum-scene-mount');
+    if (!mount) {
+        mount = document.createElement('div');
+        mount.className = 'museum-scene-mount';
+        parentElement.appendChild(mount);
+    }
+    mount.innerHTML = data;
+
+    const buttons = mount.querySelectorAll('[data-evidence-id]');
+    buttons.forEach((btn) => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            const evId = btn.getAttribute('data-evidence-id');
+            if (evId) {
+                setTriggerValue('clicked', evId);
+            }
+        };
+    });
+}
+"""
+
+MUSEUM_SCENE_COMPONENT = st.components.v2.component(
+    "museum_scene_explorer",
+    css=SCENE_COMPONENT_CSS,
+    js=SCENE_COMPONENT_JS,
+)
 
 st.set_page_config(
     page_title="AI 逆轉法庭｜證詞的破綻",
@@ -70,7 +340,17 @@ st.markdown(
     .tag-pill {
         display: inline-block; padding: .18rem .6rem; border-radius: 999px;
         font-size: .76rem; font-weight: 600; background: #33291D; color: #E6C882;
-        border: 1px solid #6E5836; margin-bottom: .35rem;
+        border: 1px solid #6E5836; margin-bottom: .35rem; margin-right: .35rem;
+    }
+    .status-pill-done {
+        display: inline-block; padding: .18rem .65rem; border-radius: 999px;
+        font-size: .76rem; font-weight: 700; background: rgba(63, 185, 80, 0.18);
+        color: #7EE787; border: 1px solid rgba(63, 185, 80, 0.5); margin-bottom: .35rem; margin-right: .35rem;
+    }
+    .status-pill-pending {
+        display: inline-block; padding: .18rem .65rem; border-radius: 999px;
+        font-size: .76rem; font-weight: 700; background: rgba(218, 183, 106, 0.16);
+        color: #F3C663; border: 1px solid rgba(218, 183, 106, 0.5); margin-bottom: .35rem; margin-right: .35rem;
     }
     .timeline-item {
         border-left: 2px solid #DAB76A; padding-left: .85rem; margin-bottom: .75rem;
@@ -104,10 +384,10 @@ st.markdown(
 
 PAGES = ["案件卷宗", "詢問證人", "證據攻防", "最後推理"]
 PAGE_GUIDES = {
-    "案件卷宗": "💡 <b>步驟 1｜認識案情與蒐集證物</b>：先看案發時間軸與三位關係人，並將 <b>5 項證物全部加入筆記</b>，才能在法庭上出示。",
-    "詢問證人": "💡 <b>步驟 2｜詢問三位證人</b>：點選證人切換對象，可用「快捷追問」或自由輸入問題，觀察誰的說法有破綻。讀過更多證物會解鎖新的追問。",
+    "案件卷宗": "💡 <b>步驟 1｜現場探索與案件卷宗</b>：在下方 <b>2D 美術館場景中點擊 5 個可疑物件熱區</b>（門禁電腦、警報控制面板、清潔勤務筆記本、桌上出庫單文件、中央畫框）檢視證物詳情並<b>收進卷宗</b>，即可解鎖時間軸與證人追問！",
+    "詢問證人": "💡 <b>步驟 2｜詢問三位證人</b>：點選證人切換對象，可用「快捷追問」或自由輸入問題，觀察誰的說法有破綻。調查更多現場物件會解鎖新的追問。",
     "證據攻防": "💡 <b>步驟 3｜在法庭上提出矛盾</b>：先選一句「說謊或有誤的證詞」，再選一項「能推翻它的證物」，找出 <b>2 項關鍵矛盾</b>！",
-    "最後推理": "💡 <b>步驟 4｜指認犯人並結案</b>：確認已讀完 5 項證物並揭穿 2 項矛盾後，選出真正的犯人與完整證據鏈，說服法官做出無罪判決！",
+    "最後推理": "💡 <b>步驟 4｜指認犯人並結案</b>：確認已調查完 5 項證物並揭穿 2 項矛盾後，選出真正的犯人與完整證據鏈，說服法官做出無罪判決！",
 }
 
 INITIAL_GAME = {
@@ -126,6 +406,8 @@ def start_game() -> None:
     for key in (
         "active_page",
         "active_witness",
+        "selected_evidence",
+        "museum_scene_2d",
         "court_statement",
         "court_evidence",
         "final_suspect",
@@ -142,6 +424,70 @@ def switch_page(target_page: str, witness_id: str | None = None) -> None:
     st.rerun()
 
 
+def investigate_evidence(evidence_id: str) -> None:
+    """開啟指定證物詳情並將其標記為已調查（收進卷宗）。"""
+    if evidence_id not in EVIDENCE_BY_ID:
+        return
+    st.session_state["selected_evidence"] = evidence_id
+    game_state = st.session_state.get("court_game")
+    if game_state is not None and evidence_id not in game_state["viewed_evidence"]:
+        game_state["viewed_evidence"].append(evidence_id)
+
+
+def _on_scene_hotspot_click() -> None:
+    """處理 2D 探索場景熱區點擊事件。"""
+    comp_state = st.session_state.get("museum_scene_2d")
+    clicked_id = comp_state.get("clicked") if isinstance(comp_state, dict) else None
+    if clicked_id:
+        investigate_evidence(clicked_id)
+
+
+def build_museum_scene_html(viewed_ids: list[str], selected_id: str | None) -> str:
+    """組裝 2D 美術館探索場景與 5 個可點擊物件熱區 HTML。"""
+    bg_uri = get_image_data_uri(SCENE_IMAGES["museum"]) or ""
+    hotspots_html = []
+    for item in EVIDENCE:
+        ev_id = item["id"]
+        is_visited = ev_id in viewed_ids
+        is_active = ev_id == selected_id
+        state_cls = "visited" if is_visited else "unvisited"
+        if is_active:
+            state_cls += " active"
+        status_label = "✅ 已調查" if is_visited else "🔍 點擊調查"
+        if is_active:
+            status_label = "👁️ 檢視中 · 已調查" if is_visited else "👁️ 檢視中"
+        prop_svg = HOTSPOT_PROP_SVGS.get(ev_id, "")
+        hotspots_html.append(
+            f"<button type='button' class='scene-hotspot {state_cls}' "
+            f"data-evidence-id='{ev_id}' "
+            f"style='left: {item['hotspot_x']}%; top: {item['hotspot_y']}%;' "
+            f"title='點擊調查：{item['object_name']}（{item['title']}）'>"
+            f"<div class='hotspot-prop'>{prop_svg}</div>"
+            f"<div class='hotspot-title'>{ev_id}｜{item['object_short']}</div>"
+            f"<span class='hotspot-status'>{status_label}</span>"
+            f"</button>"
+        )
+
+    return (
+        "<div class='scene-wrapper'>"
+        "<div class='scene-topbar'>"
+        "<div class='scene-topbar-title'>"
+        f"<span>🕵️ 2F B 展廳與相關現場物件調查空間（已收進卷宗：{len(viewed_ids)} / {len(EVIDENCE)}）</span>"
+        "</div>"
+        "<div class='scene-legend'>"
+        "<span class='legend-dot'>🟡 待調查熱區</span>"
+        "<span class='legend-dot'>🟢 已調查（已收進卷宗）</span>"
+        "<span class='legend-dot'>✨ 目前檢視物件</span>"
+        "</div>"
+        "</div>"
+        "<div class='scene-canvas'>"
+        f"<img class='scene-bg' src='{bg_uri}' alt='市立霧港美術館 2F B 展廳調查場景'/>"
+        f"{''.join(hotspots_html)}"
+        "</div>"
+        "</div>"
+    )
+
+
 if "court_game" not in st.session_state:
     st.session_state["court_game"] = deepcopy(INITIAL_GAME)
 if "active_page" not in st.session_state:
@@ -156,7 +502,7 @@ st.markdown(
     <section class="hero">
         <div class="hero-kicker">CASE FILE 01 · INTERACTIVE COURTROOM MYSTERY</div>
         <h1>⚖️ AI 逆轉法庭：證詞的破綻</h1>
-        <p>案件《{CASE_TITLE}》—— 透過視覺化卷宗、AI 證人詰問與法庭證物對決，找出真兇！</p>
+        <p>案件《{CASE_TITLE}》—— 透過 2D 現場探索、AI 證人詰問與法庭證物對決，找出真兇！</p>
         <div class="badge-row">
             <span class="case-badge">🖼️ 失竊畫作：《{ARTWORK_NAME}》</span>
             <span class="case-badge">📍 案發地點：市立霧港美術館 2F B 展廳</span>
@@ -174,11 +520,15 @@ with st.sidebar:
     clue_done = len(game["found_clues"]) == len(REQUIRED_CLUES)
     st.progress((len(game["viewed_evidence"]) + len(game["found_clues"])) / (len(EVIDENCE) + len(REQUIRED_CLUES)))
     st.markdown(
-        f"- {'✅' if ev_done else '⏳'} **步驟 1｜閱讀證物**：`{len(game['viewed_evidence'])} / {len(EVIDENCE)}`\n"
+        f"- {'✅' if ev_done else '⏳'} **步驟 1｜現場探索與證物**：`{len(game['viewed_evidence'])} / {len(EVIDENCE)}`\n"
         f"- 💬 **步驟 2｜詢問證人**：可隨時追問\n"
         f"- {'✅' if clue_done else '⏳'} **步驟 3｜成立矛盾**：`{len(game['found_clues'])} / {len(REQUIRED_CLUES)}`\n"
         f"- ⚠️ **錯誤出示次數**：`{game['wrong_challenges']} / {MAX_WRONG_CHALLENGES}`"
     )
+    with st.expander("🔍 現場物件調查狀態", expanded=True):
+        for item in EVIDENCE:
+            done_mark = "✅ 已調查" if item["id"] in game["viewed_evidence"] else "⏳ 待調查"
+            st.caption(f"{done_mark}｜**{item['id']} {item['object_short']}**")
     st.divider()
     if api_enabled:
         st.success(f"🤖 Gemini 對話已啟用 · {MODEL_NAME}")
@@ -299,22 +649,146 @@ def submit_witness_question(witness_id: str, clean_question: str, *, use_ai: boo
 
 
 if page == "案件卷宗":
-    scene_col, timeline_col = st.columns([1.35, 1.0], gap="large")
-    with scene_col:
-        st.subheader("🖼️ 案發現場：市立霧港美術館 B 展廳")
-        museum_img = resolve_asset(SCENE_IMAGES["museum"])
-        if museum_img:
-            st.image(
-                museum_img,
-                caption=f"閉館後的 2F B 展廳——名畫《{ARTWORK_NAME}》於 19:05 被發現遭仿作調包",
+    exp_head_col1, exp_head_col2 = st.columns([2.3, 1.0])
+    with exp_head_col1:
+        st.subheader(
+            f"🕵️ 現場探索：市立霧港美術館 2D 調查空間（已調查 {len(game['viewed_evidence'])} / {len(EVIDENCE)} 項）"
+        )
+        st.caption(
+            "直接點擊下方 2D 場景中的發光物件熱區（電腦監控、警報面板、勤務筆記本、出庫單文件、中央畫框），"
+            "即可開啟證物詳情並收進卷宗；點擊物件與閱讀證物不消耗 AI 額度。"
+        )
+    with exp_head_col2:
+        if len(game["viewed_evidence"]) < len(EVIDENCE):
+            if st.button("📥 一鍵調查全部物件並收進卷宗", type="secondary", use_container_width=True):
+                game["viewed_evidence"] = [item["id"] for item in EVIDENCE]
+                if not st.session_state.get("selected_evidence"):
+                    st.session_state["selected_evidence"] = EVIDENCE[0]["id"]
+                st.rerun()
+        else:
+            st.success("✅ 5 項現場物件已全數調查完畢！")
+
+    selected_ev_id = st.session_state.get("selected_evidence")
+    scene_html = build_museum_scene_html(game["viewed_evidence"], selected_ev_id)
+    scene_result = MUSEUM_SCENE_COMPONENT(
+        key="museum_scene_2d",
+        data=scene_html,
+        on_clicked_change=_on_scene_hotspot_click,
+    )
+    if scene_result.clicked and (
+        st.session_state.get("selected_evidence") != scene_result.clicked
+        or scene_result.clicked not in game["viewed_evidence"]
+    ):
+        investigate_evidence(scene_result.clicked)
+        st.rerun()
+
+    # 場景下方同步提供手機／鍵盤友善的物件快速切換列
+    st.caption("👇 也可點選下方現場物件按鈕開啟詳情並收進卷宗：")
+    hotspot_btn_cols = st.columns(5, gap="small")
+    for col, item in zip(hotspot_btn_cols, EVIDENCE):
+        with col:
+            is_visited = item["id"] in game["viewed_evidence"]
+            is_active = st.session_state.get("selected_evidence") == item["id"]
+            prefix = "✅" if is_visited else "🔍"
+            if st.button(
+                f"{prefix} {item['id']} {item['object_short']}",
+                key=f"quick_spot_{item['id']}",
+                type="primary" if is_active else "secondary",
                 use_container_width=True,
+            ):
+                investigate_evidence(item["id"])
+                st.rerun()
+
+    # 證物詳情資訊卡（點擊場景熱區後立即於場景下方展示）
+    active_ev_id = st.session_state.get("selected_evidence")
+    with st.container(border=True):
+        if active_ev_id and active_ev_id in EVIDENCE_BY_ID:
+            active_item = EVIDENCE_BY_ID[active_ev_id]
+            is_collected = active_ev_id in game["viewed_evidence"]
+            detail_img_col, detail_text_col = st.columns([1.05, 1.45], gap="large")
+            with detail_img_col:
+                ev_img = resolve_asset(active_item["image"])
+                if ev_img:
+                    st.image(
+                        ev_img,
+                        caption=f"現場物件特寫：{active_item['object_name']}（{active_item['title']}）",
+                        use_container_width=True,
+                    )
+            with detail_text_col:
+                status_html = (
+                    "<span class='status-pill-done'>✅ 已調查 · 已收進卷宗</span>"
+                    if is_collected
+                    else "<span class='status-pill-pending'>🔍 待收進卷宗</span>"
+                )
+                st.markdown(
+                    f"{status_html}"
+                    f"<span class='tag-pill'>{active_item['object_icon']} 現場物件：{active_item['object_name']}</span>"
+                    f"<span class='tag-pill'>{active_item['tag']}</span>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(f"### {active_item['id']}｜{active_item['title']}")
+                st.caption(f"📍 場景位置：{active_item['scene_spot']}　｜　🕒 關鍵時間：{active_item['time_hint']}")
+                st.markdown(f"**🔎 現場勘查紀錄**：{active_item['scene_note']}")
+                st.info(f"📋 **證物鑑定與卷宗細節**：\n\n{active_item['detail']}")
+
+                unlocked_questions = [
+                    f"「{q_text}」（詢問{w['name']}）"
+                    for w in WITNESSES.values()
+                    for q_text, req_ev in w["sample_questions"]
+                    if req_ev == active_ev_id
+                ]
+                if unlocked_questions:
+                    st.caption(f"🔓 **已解鎖證人快捷追問**：{'、'.join(unlocked_questions)}")
+
+                action_c1, action_c2 = st.columns(2)
+                with action_c1:
+                    if is_collected:
+                        st.success("✅ 已收進卷宗（可於法庭攻防出示）")
+                    elif st.button(
+                        "📥 收進卷宗（標記為已調查）",
+                        key=f"collect_detail_{active_ev_id}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        investigate_evidence(active_ev_id)
+                        st.rerun()
+                with action_c2:
+                    unvisited_items = [it for it in EVIDENCE if it["id"] not in game["viewed_evidence"]]
+                    if unvisited_items:
+                        next_item = unvisited_items[0]
+                        if st.button(
+                            f"🔍 調查下一項：{next_item['id']} {next_item['object_short']}",
+                            key=f"next_unvisited_{active_ev_id}",
+                            type="primary",
+                            use_container_width=True,
+                        ):
+                            investigate_evidence(next_item["id"])
+                            st.rerun()
+                    else:
+                        if st.button(
+                            "💬 5 項證物已齊全！前往詢問證人",
+                            key="goto_witness_from_detail",
+                            type="primary",
+                            use_container_width=True,
+                        ):
+                            switch_page("詢問證人")
+        else:
+            st.info(
+                "👆 **現場調查面板**：請點擊上方 2D 美術館場景中的任一發光物件熱區"
+                "（**E1 門禁電腦／監控**、**E2 警報控制面板**、**E3 清潔勤務筆記本**、**E4 桌上出庫單文件**、**E5 畫框與檢驗資料**），"
+                "即可在此處開啟證物特寫與詳情，並將證物收進卷宗！"
             )
+
+    st.divider()
+    scene_col, timeline_col = st.columns([1.25, 1.0], gap="large")
+    with scene_col:
+        st.subheader("🏛️ 案件背景與館內空間配置")
         st.write(CASE_BACKGROUND)
         st.info(
-            "🏛️ **館內樓層配置提示**：\n"
-            "- **2F B 展廳**：《海霧港灣》展出位置，設有刷卡門禁與動作感應警報。\n"
-            "- **1F 西側裝卸區**：大型展品與恆溫運輸箱進出館通道。\n"
-            "- **B1 地下器材室**：清潔員王冠宇整理清潔車與主管簽退處。"
+            "🗺️ **館內樓層配置與調查重點**：\n"
+            "- **2F B 展廳**：《海霧港灣》展出位置，設有刷卡門禁電腦與動作感應警報控制面板。\n"
+            "- **1F 西側裝卸區**：大型展品與恆溫運輸箱進出館通道，留有當晚出庫單據。\n"
+            "- **B1 地下器材室**：清潔員王冠宇整理清潔車與主管簽退處，留有清潔勤務簽到簿。"
         )
 
     with timeline_col:
@@ -332,7 +806,7 @@ if page == "案件卷宗":
                     html = (
                         "<div class='timeline-item locked'><div class='timeline-time'>？？：？？</div>"
                         "<div class='timeline-event'>尚未查證</div>"
-                        "<div class='timeline-detail'>閱讀相關證物後解鎖</div></div>"
+                        "<div class='timeline-detail'>在上方現場探索調查對應物件後解鎖</div></div>"
                     )
                 st.markdown(html, unsafe_allow_html=True)
 
@@ -355,35 +829,61 @@ if page == "案件卷宗":
     st.divider()
     ev_header_col1, ev_header_col2 = st.columns([2.2, 1.0])
     with ev_header_col1:
-        st.subheader(f"🗂️ 現場證物櫃（已蒐集 {len(game['viewed_evidence'])} / {len(EVIDENCE)} 項）")
-        st.caption("檢視證物影像與鑑定細節，點擊「加入證物筆記」即可在法庭攻防時出示。")
+        st.subheader(f"🗂️ 案件卷宗證物櫃（已調查並收進卷宗 {len(game['viewed_evidence'])} / {len(EVIDENCE)} 項）")
+        st.caption("在上方 2D 現場點擊物件後，證物會自動收進此卷宗，並可在法庭攻防時出示。")
     with ev_header_col2:
         if len(game["viewed_evidence"]) < len(EVIDENCE):
-            if st.button("📥 全部加入筆記", type="primary", use_container_width=True):
+            if st.button("📥 全部收進卷宗", type="primary", use_container_width=True):
                 game["viewed_evidence"] = [item["id"] for item in EVIDENCE]
+                if not st.session_state.get("selected_evidence"):
+                    st.session_state["selected_evidence"] = EVIDENCE[0]["id"]
                 st.rerun()
         else:
-            st.success("✅ 5 項證物已全數加入筆記！")
+            st.success("✅ 5 項證物已全數收進卷宗！")
 
     ev_cols = st.columns(2, gap="medium")
     for idx, item in enumerate(EVIDENCE):
         with ev_cols[idx % 2]:
             with st.container(border=True):
+                is_collected = item["id"] in game["viewed_evidence"]
                 ev_img = resolve_asset(item["image"])
                 if ev_img:
                     st.image(ev_img, use_container_width=True)
-                st.markdown(f"<span class='tag-pill'>{item['tag']}</span>", unsafe_allow_html=True)
+                status_badge = (
+                    "<span class='status-pill-done'>✅ 已調查 · 已收進卷宗</span>"
+                    if is_collected
+                    else "<span class='status-pill-pending'>🔍 待調查物件</span>"
+                )
+                st.markdown(
+                    f"{status_badge}"
+                    f"<span class='tag-pill'>{item['object_icon']} {item['object_name']}</span>"
+                    f"<span class='tag-pill'>{item['tag']}</span>",
+                    unsafe_allow_html=True,
+                )
                 st.markdown(f"#### {item['id']}｜{item['title']}")
-                st.caption(f"🕒 {item['time_hint']}")
-                st.write(item["detail"])
-                if item["id"] in game["viewed_evidence"]:
-                    st.success("✅ 已加入筆記")
-                elif st.button("📌 加入筆記", key=f"read_{item['id']}", use_container_width=True):
-                    game["viewed_evidence"].append(item["id"])
-                    st.rerun()
+                st.caption(f"📍 {item['scene_spot']}　｜　🕒 {item['time_hint']}")
+                if is_collected:
+                    st.write(item["detail"])
+                    if st.button(
+                        "👁️ 在上方現場調查面板檢視",
+                        key=f"focus_{item['id']}",
+                        use_container_width=True,
+                    ):
+                        st.session_state["selected_evidence"] = item["id"]
+                        st.rerun()
+                else:
+                    st.caption(f"💡 點擊上方 2D 場景中的「{item['object_name']}」或下方按鈕即可調查並收進卷宗。")
+                    if st.button(
+                        "📥 調查物件並收進卷宗",
+                        key=f"read_{item['id']}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        investigate_evidence(item["id"])
+                        st.rerun()
 
     if len(game["viewed_evidence"]) == len(EVIDENCE):
-        st.info("🎯 你已蒐集完所有證物！接下來可前往 **② 詢問證人** 追問細節，或直接前往 **③ 證據攻防** 指出證詞矛盾。")
+        st.info("🎯 你已調查完所有現場物件並收進卷宗！接下來可前往 **② 詢問證人** 追問細節，或直接前往 **③ 證據攻防** 指出證詞矛盾。")
 
 elif page == "詢問證人":
     st.subheader("💬 證人詢問室")
