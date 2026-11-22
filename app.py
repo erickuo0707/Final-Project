@@ -10,7 +10,7 @@ import streamlit as st
 
 import game_data
 
-if not game_data.EVIDENCE or "object_short" not in game_data.EVIDENCE[0]:
+if not game_data.EVIDENCE or "object_short" not in game_data.EVIDENCE[0] or not hasattr(game_data, "TIMELINE_PUZZLE"):
     game_data = importlib.reload(game_data)
 
 from ai_dialogue import (
@@ -31,10 +31,11 @@ from game_data import (
     EVIDENCE,
     FALLBACK_REPLIES,
     FINAL_REASONS,
-    MAX_WRONG_CHALLENGES,
+    MAX_COURT_HINT_LEVEL,
     REQUIRED_CLUES,
     SCENE_IMAGES,
     STATEMENTS,
+    TIMELINE_PUZZLE,
     WITNESSES,
 )
 
@@ -1109,7 +1110,7 @@ st.markdown(
     /* 畫面變窄時欄位自動換行，避免文字被擠成細長直條 */
     div[data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
     div[data-testid="stColumn"], div[data-testid="column"] { min-width: min(100%, 17rem); }
-    /* 上方四步驟按鈕維持同一列 */
+    /* 五階段導覽分成三加二，手機上按鈕仍保有可讀寬度 */
     .st-key-top-nav div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap; }
     .st-key-top-nav div[data-testid="stColumn"], .st-key-top-nav div[data-testid="column"] { min-width: 0; }
     /* 換行後圖片不要撐得太高 */
@@ -1124,12 +1125,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-PAGES = ["案件卷宗", "詢問證人", "證據攻防", "最後推理"]
+PAGES = ["案件卷宗", "詢問證人", "時間線推理", "證據攻防", "最後推理"]
 PAGE_GUIDES = {
     "案件卷宗": "💡 <b>步驟 1｜第一人稱現場搜查</b>：將滑鼠或手指移入下方美術館現場（可開啟右上角<b>「🖥️ 全螢幕沉浸模式」</b>），點擊可疑的螢幕、面板、簿冊、單據或畫框進入<b>近距離檢視看板／拿起報告</b>，並在報告中點選關鍵疑點收進證物袋！",
     "詢問證人": "💡 <b>步驟 2｜詢問三位證人</b>：點選證人切換對象，可用「快捷追問」或自由輸入問題，觀察誰的說法有破綻。在現場蒐集更多證物會解鎖新的追問。",
-    "證據攻防": "💡 <b>步驟 3｜在法庭上提出矛盾</b>：先選一句「說謊或有誤的證詞」，再選一項「能推翻它的證物」，找出 <b>2 項關鍵矛盾</b>！",
-    "最後推理": "💡 <b>步驟 4｜指認犯人並結案</b>：確認已蒐集齊 5 項證物並揭穿 2 項矛盾後，選出真正的犯人與完整證據鏈，說服法官做出無罪判決！",
+    "時間線推理": "💡 <b>步驟 3｜重建案發時間線</b>：把四張關鍵紀錄放回正確時間，再判斷出庫單和勤務簿「能證明什麼、不能證明什麼」。答錯會逐步給提示，可不限次重試。",
+    "證據攻防": "💡 <b>步驟 4｜在法庭上提出矛盾</b>：先選一句「說謊或有誤的證詞」，再選一項「能推翻它的證物」，找出 <b>2 項關鍵矛盾</b>。答錯會逐步提示，第三級會揭示正確配對，不會直接判輸。",
+    "最後推理": "💡 <b>步驟 5｜指認犯人並結案</b>：蒐集證物、重建時間線、辨明證據界線並揭穿兩項矛盾後，選出真正的犯人與完整證據鏈。",
 }
 
 INITIAL_GAME = {
@@ -1139,6 +1141,14 @@ INITIAL_GAME = {
     "ai_calls": 0,
     "chat_history": {witness_id: [] for witness_id in WITNESSES},
     "last_court_result": None,
+    "timeline_solved": False,
+    "timeline_attempts": 0,
+    "timeline_feedback": None,
+    "e4_scope_solved": False,
+    "e4_scope_attempts": 0,
+    "e3_scope_solved": False,
+    "e3_scope_attempts": 0,
+    "hint_level": 0,
     "ending": None,
 }
 
@@ -1154,6 +1164,13 @@ def start_game() -> None:
         "court_evidence",
         "final_suspect",
         "final_reason",
+        "timeline_form",
+        "timeline_event_1841",
+        "timeline_event_1842",
+        "timeline_event_1854",
+        "timeline_event_1856",
+        "timeline_scope_e4",
+        "timeline_scope_e3",
     ):
         st.session_state.pop(key, None)
     st.rerun()
@@ -1342,6 +1359,17 @@ if "active_page" not in st.session_state:
     st.session_state["active_page"] = PAGES[0]
 
 game = st.session_state["court_game"]
+for _key, _default in {
+    "timeline_solved": False,
+    "timeline_attempts": 0,
+    "timeline_feedback": None,
+    "e4_scope_solved": False,
+    "e4_scope_attempts": 0,
+    "e3_scope_solved": False,
+    "e3_scope_attempts": 0,
+    "hint_level": 0,
+}.items():
+    game.setdefault(_key, _default)
 page = st.session_state["active_page"]
 api_enabled = bool(get_api_key())
 
@@ -1366,12 +1394,24 @@ with st.sidebar:
     st.markdown("### 📊 調查進度檢查表")
     ev_done = len(game["viewed_evidence"]) == len(EVIDENCE)
     clue_done = len(game["found_clues"]) == len(REQUIRED_CLUES)
-    st.progress((len(game["viewed_evidence"]) + len(game["found_clues"])) / (len(EVIDENCE) + len(REQUIRED_CLUES)))
+    timeline_done = game["timeline_solved"]
+    scope_done = game["e4_scope_solved"] and game["e3_scope_solved"]
+    progress_total = len(EVIDENCE) + len(REQUIRED_CLUES) + 3
+    progress_done = (
+        len(game["viewed_evidence"])
+        + len(game["found_clues"])
+        + int(timeline_done)
+        + int(game["e4_scope_solved"])
+        + int(game["e3_scope_solved"])
+    )
+    st.progress(progress_done / progress_total)
     st.markdown(
         f"- {'✅' if ev_done else '⏳'} **步驟 1｜現場蒐證**：`{len(game['viewed_evidence'])} / {len(EVIDENCE)}`\n"
         f"- 💬 **步驟 2｜詢問證人**：可隨時追問\n"
-        f"- {'✅' if clue_done else '⏳'} **步驟 3｜成立矛盾**：`{len(game['found_clues'])} / {len(REQUIRED_CLUES)}`\n"
-        f"- ⚠️ **錯誤出示次數**：`{game['wrong_challenges']} / {MAX_WRONG_CHALLENGES}`"
+        f"- {'✅' if timeline_done else '⏳'} **步驟 3｜重建時間線**：{'已完成' if timeline_done else '待推理'}\n"
+        f"- {'✅' if clue_done else '⏳'} **步驟 4｜法庭攻防**：`{len(game['found_clues'])} / {len(REQUIRED_CLUES)}`\n"
+        f"- {'✅' if scope_done else '⏳'} **證據界線**：`{int(game['e4_scope_solved']) + int(game['e3_scope_solved'])} / 2`\n"
+        f"- 💡 **法庭提示等級**：`{min(game['wrong_challenges'], MAX_COURT_HINT_LEVEL)} / {MAX_COURT_HINT_LEVEL}`"
     )
     with st.expander("🗂️ 已採證卷宗清單", expanded=True):
         for idx, item in enumerate(EVIDENCE, start=1):
@@ -1388,13 +1428,16 @@ with st.sidebar:
     if st.button("🔄 重新開始本局", use_container_width=True):
         start_game()
 
-# 頂部四步驟快速切換按鈕列
-nav_cols = st.container(key="top-nav").columns(4)
+# 頂部五階段快速切換按鈕列：手機也保留足夠的按鈕寬度
+with st.container(key="top-nav"):
+    nav_rows = [st.columns(3), st.columns(2)]
+nav_cols = [*nav_rows[0], *nav_rows[1]]
 step_labels = [
-    f"① 現場與卷宗 {len(game['viewed_evidence'])}/{len(EVIDENCE)}",
-    "② 詢問證人",
-    f"③ 法庭攻防 {len(game['found_clues'])}/{len(REQUIRED_CLUES)}",
-    "④ 最終推理",
+    f"① 現場 {len(game['viewed_evidence'])}/{len(EVIDENCE)}",
+    "② 詢問",
+    f"③ 時間線 {'✅' if game['timeline_solved'] else '🧩'}",
+    f"④ 法庭 {len(game['found_clues'])}/{len(REQUIRED_CLUES)}",
+    "⑤ 結案",
 ]
 for idx, (col, target_page, label) in enumerate(zip(nav_cols, PAGES, step_labels)):
     with col:
@@ -1665,6 +1708,149 @@ elif page == "詢問證人":
 
         st.caption("🔒 只有自由輸入的問題會傳送至 Google API；請勿輸入真實姓名或個人資料。")
 
+elif page == "時間線推理":
+    st.subheader("🧩 時間線推理：重建名畫失竊的關鍵幾分鐘")
+    st.write(
+        "把四張紀錄放回正確時間，再檢查兩項容易被過度解讀的證物。"
+        "這關考的是線索之間的關係；答錯可以重試，提示不消耗 AI 額度，也不計入法庭錯誤次數。"
+    )
+
+    if len(game["viewed_evidence"]) < len(EVIDENCE):
+        st.warning("先回到美術館，蒐集五項證物後才能開始排時間線。")
+        if st.button("🔎 回到現場繼續搜查", type="primary", use_container_width=True):
+            switch_page("案件卷宗")
+    else:
+        events = TIMELINE_PUZZLE["events"]
+        event_choices = ["", *events.keys()]
+        scope_e4 = TIMELINE_PUZZLE["scope_questions"]["e4"]
+        scope_e3 = TIMELINE_PUZZLE["scope_questions"]["e3"]
+
+        st.markdown("#### 🗂️ 證據桌｜把事件卡放回時間點")
+        with st.expander("🗃️ 重看已採集的證物", expanded=False):
+            evidence_columns = st.columns(2, gap="medium")
+            for evidence_index, evidence_item in enumerate(EVIDENCE):
+                with evidence_columns[evidence_index % 2]:
+                    with st.container(border=True):
+                        st.markdown(f"**{evidence_item['id']}｜{evidence_item['title']}**")
+                        st.caption(evidence_item["time_hint"])
+                        st.write(evidence_item["detail"])
+        with st.form("timeline_puzzle_form"):
+            first_row = st.columns(2, gap="large")
+            second_row = st.columns(2, gap="large")
+            selected_events = {}
+            for col, slot in zip(first_row, TIMELINE_PUZZLE["slots"][:2]):
+                with col:
+                    selected_events[slot["time"]] = st.selectbox(
+                        f"{slot['time']} 發生什麼事？",
+                        event_choices,
+                        format_func=lambda value: "選擇一張事件卡…" if not value else events[value],
+                        key=f"timeline_event_{slot['time'].replace(':', '')}",
+                        disabled=game["timeline_solved"],
+                    )
+            for col, slot in zip(second_row, TIMELINE_PUZZLE["slots"][2:]):
+                with col:
+                    selected_events[slot["time"]] = st.selectbox(
+                        f"{slot['time']} 發生什麼事？",
+                        event_choices,
+                        format_func=lambda value: "選擇一張事件卡…" if not value else events[value],
+                        key=f"timeline_event_{slot['time'].replace(':', '')}",
+                        disabled=game["timeline_solved"],
+                    )
+
+            st.divider()
+            st.markdown("#### 🔍 證據範圍｜哪一項是紀錄直接說明的事？")
+            scope_e4_answer = st.radio(
+                scope_e4["question"], scope_e4["options"], index=None,
+                key="timeline_scope_e4",
+                disabled=game["e4_scope_solved"],
+            )
+            scope_e3_answer = st.radio(
+                scope_e3["question"], scope_e3["options"], index=None,
+                key="timeline_scope_e3",
+                disabled=game["e3_scope_solved"],
+            )
+            puzzle_submitted = st.form_submit_button(
+                "🧠 核對我的推理", type="primary", use_container_width=True
+            )
+
+        if puzzle_submitted:
+            wrong_times = [
+                slot["time"]
+                for slot in TIMELINE_PUZZLE["slots"]
+                if selected_events[slot["time"]] != slot["correct"]
+            ]
+            timeline_correct = not wrong_times
+            if timeline_correct:
+                game["timeline_solved"] = True
+            else:
+                game["timeline_attempts"] += 1
+
+            e4_correct = scope_e4_answer == scope_e4["options"][scope_e4["correct"]]
+            e3_correct = scope_e3_answer == scope_e3["options"][scope_e3["correct"]]
+            if e4_correct:
+                game["e4_scope_solved"] = True
+            elif scope_e4_answer is not None and not game["e4_scope_solved"]:
+                game["e4_scope_attempts"] += 1
+            if e3_correct:
+                game["e3_scope_solved"] = True
+            elif scope_e3_answer is not None and not game["e3_scope_solved"]:
+                game["e3_scope_attempts"] += 1
+
+            game["timeline_feedback"] = {
+                "wrong_times": wrong_times,
+                "e4_correct": e4_correct,
+                "e3_correct": e3_correct,
+            }
+            if wrong_times or (scope_e4_answer is not None and not e4_correct) or (scope_e3_answer is not None and not e3_correct):
+                attempts = max(
+                    game["timeline_attempts"],
+                    game["e4_scope_attempts"],
+                    game["e3_scope_attempts"],
+                )
+                game["hint_level"] = max(game["hint_level"], min(attempts, 3))
+            st.rerun()
+
+        feedback = game["timeline_feedback"]
+        if feedback:
+            if feedback["wrong_times"]:
+                st.warning("還有時間點沒有配對正確：" + "、".join(feedback["wrong_times"]) + "。重新看 E1、E2、E4 的時間再試一次。")
+            elif game["timeline_solved"]:
+                st.success("時間線成立：18:42 的進入紀錄落在警報旁路期間，恆溫箱則在旁路結束後離館。")
+            if feedback["e4_correct"]:
+                st.success("E4 判讀正確：出庫與簽核有紀錄，但箱內物品沒有填寫。")
+            elif scope_e4_answer is not None and not game["e4_scope_solved"]:
+                st.error("E4 的答案還不正確。留意出庫單上有沒有寫明箱內物品。")
+            if feedback["e3_correct"]:
+                st.success("E3 判讀正確：簽到和簽退是兩個時間點，不代表中間每分鐘都有人確認位置。")
+            elif scope_e3_answer is not None and not game["e3_scope_solved"]:
+                st.error("E3 的答案還不正確。把「有簽到、簽退紀錄」和「全程都在同一地點」分開判斷。")
+
+        if game["timeline_solved"]:
+            st.success("✅ 時間線已重建")
+        if game["e4_scope_solved"] or game["e3_scope_solved"]:
+            st.caption(
+                f"證據範圍判讀：E4 {'✅' if game['e4_scope_solved'] else '⏳'}　·　"
+                f"E3 {'✅' if game['e3_scope_solved'] else '⏳'}"
+            )
+
+        if not (game["timeline_solved"] and game["e4_scope_solved"] and game["e3_scope_solved"]):
+            if st.button("🔦 顯示下一個提示", key="timeline_hint_button"):
+                game["hint_level"] = min(3, game["hint_level"] + 1)
+                st.rerun()
+            hint_level = max(
+                game["hint_level"],
+                min(game["timeline_attempts"], 3),
+                min(game["e4_scope_attempts"], 3),
+                min(game["e3_scope_attempts"], 3),
+            )
+            if hint_level:
+                st.info(f"💡 提示 {hint_level}／3：{TIMELINE_PUZZLE['hints'][hint_level - 1]}")
+
+        if game["timeline_solved"] and game["e4_scope_solved"] and game["e3_scope_solved"]:
+            st.success("🎯 推理關卡完成。你已把時間線排好，也區分了直接紀錄與推論。")
+            if st.button("⚖️ 前往法庭提出矛盾", type="primary", use_container_width=True):
+                switch_page("證據攻防")
+
 elif page == "證據攻防":
     court_img = resolve_asset(SCENE_IMAGES["courtroom"])
     top_c1, top_c2 = st.columns([1.15, 1.35], gap="large")
@@ -1763,19 +1949,21 @@ elif page == "證據攻防":
                     "ai": False,
                 }
             else:
-                game["wrong_challenges"] += 1
+                game["wrong_challenges"] = min(
+                    game["wrong_challenges"] + 1, MAX_COURT_HINT_LEVEL
+                )
+                if game["wrong_challenges"] == 1:
+                    hint = "提示 1：比對證詞裡明確提到的時間、地點或系統狀態。"
+                elif game["wrong_challenges"] == 2:
+                    hint = "提示 2：『閉館後沒有進入 B 展廳』要對照 E1；『警報沒有被解除』要對照 E2。"
+                else:
+                    hint = "提示 3：正確配對是「策展人證詞＋E1」和「保全證詞＋E2」。選好後重新提出異議即可繼續。"
                 game["last_court_result"] = {
                     "success": False,
                     "summary": "矛盾不成立",
-                    "text": "這組「證詞」與「證物」無法構成直接矛盾！請仔細比對證詞提到的時間、地點與證物紀錄。",
+                    "text": "這組「證詞」與「證物」無法構成直接矛盾。" + hint,
                     "ai": False,
                 }
-                if game["wrong_challenges"] >= MAX_WRONG_CHALLENGES:
-                    game["ending"] = {
-                        "success": False,
-                        "title": "異議遭到駁回",
-                        "body": "三次出示都沒有指出成立的矛盾，法官裁定辯方證據不足。你可以重新開始，再仔細比對時間與證詞。",
-                    }
             st.rerun()
 
     if game["last_court_result"]:
@@ -1783,28 +1971,38 @@ elif page == "證據攻防":
         if result["success"]:
             st.success(f"### 🎯 異議成立！{result.get('summary', '')}\n\n🗣️ **證人反應**：{result['text']}")
         else:
-            st.error(f"### ❌ 異議駁回！\n\n{result['text']}（目前錯誤次數：{game['wrong_challenges']} / {MAX_WRONG_CHALLENGES}）")
+            st.error(f"### ❌ 異議駁回！\n\n{result['text']}（目前提示等級：{game['wrong_challenges']} / {MAX_COURT_HINT_LEVEL}）")
 
     if len(game["found_clues"]) == len(REQUIRED_CLUES):
-        st.info("🎉 恭喜！你已經揭穿全部 **2 項關鍵矛盾**！請立即前往 **④ 最後推理** 指認真正的犯人。")
-        if st.button("👉 前往最後推理（法庭結案）", type="primary", use_container_width=True):
-            switch_page("最後推理")
+        if game["timeline_solved"] and game["e4_scope_solved"] and game["e3_scope_solved"]:
+            st.info("🎉 兩項矛盾已成立，時間線與證據範圍也已推理完成。可以進入最後結案。")
+            if st.button("👉 前往最後推理（法庭結案）", type="primary", use_container_width=True):
+                switch_page("最後推理")
+        else:
+            st.info("矛盾已成立；完成時間線與證據範圍推理後，就能進入最後結案。")
+            if st.button("🧩 前往時間線推理", type="primary", use_container_width=True):
+                switch_page("時間線推理")
 
 elif page == "最後推理":
     st.subheader("🏛️ 最後推理：向法官提出結案陳詞")
-    st.write("綜合門禁影像、警報旁路紀錄、裝卸區出庫單與畫作鑑定報告，請選出真正的竊畫犯人與完整犯罪手法。")
+    st.write("綜合門禁影像、警報旁路紀錄、出庫單與畫作鑑定報告。注意：出庫單沒有填寫箱內物品，請用彼此印證的線索提出最完整、也不超出證據範圍的推理。")
 
-    check_col1, check_col2 = st.columns(2)
+    check_col1, check_col2, check_col3 = st.columns(3)
     with check_col1:
         if len(game["viewed_evidence"]) == len(EVIDENCE):
             st.success(f"✅ **證物蒐集完整**：已閱讀全部 `{len(EVIDENCE)} / {len(EVIDENCE)}` 項證物")
         else:
             st.warning(f"⚠️ **尚有未讀證物**：目前僅閱讀 `{len(game['viewed_evidence'])} / {len(EVIDENCE)}` 項（結案需全部讀完）")
     with check_col2:
-        if len(game["found_clues"]) == len(REQUIRED_CLUES):
-            st.success(f"✅ **關鍵矛盾已全部揭穿**：已成立 `{len(REQUIRED_CLUES)} / {len(REQUIRED_CLUES)}` 項矛盾")
+        if game["timeline_solved"] and game["e4_scope_solved"] and game["e3_scope_solved"]:
+            st.success("✅ **時間線與證據範圍推理完成**")
         else:
-            st.warning(f"⚠️ **尚有矛盾未揭穿**：目前僅找出 `{len(game['found_clues'])} / {len(REQUIRED_CLUES)}` 項（請先至「證據攻防」完成）")
+            st.warning("⚠️ **時間線推理尚未完成**（可回到「③ 時間線推理」看提示）")
+    with check_col3:
+        if len(game["found_clues"]) == len(REQUIRED_CLUES):
+            st.success(f"✅ **關鍵矛盾已全部揭穿**：`{len(REQUIRED_CLUES)} / {len(REQUIRED_CLUES)}`")
+        else:
+            st.warning(f"⚠️ **尚有矛盾未揭穿**：`{len(game['found_clues'])} / {len(REQUIRED_CLUES)}`（請先完成法庭攻防）")
 
     st.markdown("#### 👤 候選嫌疑人一覽")
     suspect_cols = st.columns(3, gap="medium")
@@ -1832,7 +2030,25 @@ elif page == "最後推理":
             format_func=lambda key: FINAL_REASONS[key],
             key="final_reason",
         )
-        verdict_submitted = st.form_submit_button("⚖️ 請法官做出最終裁決！", type="primary", use_container_width=True)
+        can_submit_verdict = (
+            len(game["found_clues"]) == len(REQUIRED_CLUES)
+            and len(game["viewed_evidence"]) == len(EVIDENCE)
+            and game["timeline_solved"]
+            and game["e4_scope_solved"]
+            and game["e3_scope_solved"]
+        )
+        verdict_submitted = st.form_submit_button(
+            "⚖️ 請法官做出最終裁決！", type="primary",
+            use_container_width=True, disabled=not can_submit_verdict,
+        )
+
+    if not can_submit_verdict:
+        if not game["timeline_solved"] or not game["e4_scope_solved"] or not game["e3_scope_solved"]:
+            if st.button("🧩 回到時間線推理", use_container_width=True):
+                switch_page("時間線推理")
+        elif len(game["found_clues"]) < len(REQUIRED_CLUES):
+            if st.button("⚡ 回到法庭攻防", use_container_width=True):
+                switch_page("證據攻防")
 
     if verdict_submitted and (suspect_id is None or reason_id is None):
         st.warning("請先選出你要指控的人，以及支持指控的證據鏈。")
@@ -1840,6 +2056,9 @@ elif page == "最後推理":
         complete_record = (
             len(game["found_clues"]) == len(REQUIRED_CLUES)
             and len(game["viewed_evidence"]) == len(EVIDENCE)
+            and game["timeline_solved"]
+            and game["e4_scope_solved"]
+            and game["e3_scope_solved"]
         )
         success = (
             suspect_id == CULPRIT_ID
@@ -1852,10 +2071,10 @@ elif page == "最後推理":
                 "title": "逆轉成功！真相大白",
                 "body": (
                     "法官採納你的完整推理！\n\n"
-                    "- **18:41–18:54**：林書妍以策展人管理帳號將 B 展廳警報切換為旁路模式（證物 E2）\n"
-                    "- **18:42**：林書妍刷識別證進入 B 展廳，將真跡換成修復室 R-07 仿作（證物 E1、E5）\n"
-                    "- **18:56**：她以自己簽核的恆溫運輸箱，從西側裝卸區將真跡運出館外（證物 E4）\n"
-                    "- **18:30–19:00**：清潔勤務簽到單證明被告王冠宇全程在 B1 器材室（證物 E3）\n\n"
+                    "- **18:41–18:54**：策展人專用管理帳號將 B 展廳警報切換為旁路模式（證物 E2）\n"
+                    "- **18:42**：林書妍的識別證及入口影像確認她進入 B 展廳；展出的畫作後來驗出是仿品（證物 E1、E5）\n"
+                    "- **18:56**：她申請並簽核的恆溫運輸箱由西側出館；出庫單沒有填箱內物品，因此不能單靠 E4 宣稱箱內是真跡\n"
+                    "- **王冠宇的勤務簿**記錄他在 B1 簽到與簽退，但不等於逐分鐘監看；與指向策展人的多項紀錄合看，清潔員並非最符合證據鏈的人選（證物 E3）\n\n"
                     "策展人林書妍當庭被捕，清潔員王冠宇獲判無罪！"
                 ),
             }
@@ -1872,3 +2091,4 @@ elif page == "最後推理":
                 "body": body + " 你可以重新開始，再整理一次證詞與證物。",
             }
         st.rerun()
+
