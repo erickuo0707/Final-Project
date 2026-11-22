@@ -23,6 +23,50 @@ CASE_TIMELINE = [
     {"time": "19:05", "event": "發現名畫遭調包", "detail": "夜班保全巡場至 B 展廳，發現《海霧港灣》被換成仿作", "evidence": None},
 ]
 
+# 時間線推理關卡：玩家把事件配到時間點，再判讀證據本身能證明的範圍。
+TIMELINE_PUZZLE = {
+    "events": {
+        "bypass_start": "警報切換為旁路模式（E2）",
+        "curator_entry": "策展人林書妍刷卡進入 B 展廳（E1）",
+        "bypass_end": "警報旁路結束（E2）",
+        "crate_exit": "恆溫運輸箱由西側裝卸區出館（E4）",
+        "fake_found": "保全發現畫框中的畫作是仿作（E5）",
+    },
+    "slots": [
+        {"time": "18:41", "correct": "bypass_start"},
+        {"time": "18:42", "correct": "curator_entry"},
+        {"time": "18:54", "correct": "bypass_end"},
+        {"time": "18:56", "correct": "crate_exit"},
+    ],
+    "scope_questions": {
+        "e4": {
+            "question": "E4 出庫單能直接證明哪一項？",
+            "options": [
+                "恆溫箱裡一定是真跡《海霧港灣》",
+                "林書妍申請並簽核的恆溫箱於 18:56 出館，但單據沒有填箱內物品",
+                "林書妍親手把畫作搬上運輸箱",
+                "警方已在箱內找到真跡",
+            ],
+            "correct": 1,
+        },
+        "e3": {
+            "question": "E3 勤務簿能直接證明哪一項？",
+            "options": [
+                "王冠宇每一分鐘都待在 B1，沒有離開過",
+                "王冠宇 18:30 在 B1 簽到、19:00 由主管簽退；紀錄沒有逐分鐘監看他的行蹤",
+                "王冠宇 18:42 曾進入 B 展廳",
+                "林書妍替王冠宇完成簽到和簽退",
+            ],
+            "correct": 1,
+        },
+    },
+    "hints": [
+        "把 E1 的 18:42 和 E2 的 18:41–18:54 放在一起看：一個是單一時間，一個是持續一段時間。",
+        "18:42 落在警報旁路期間；18:56 則在旁路結束後兩分鐘。E4 的箱內物品欄是空白，E3 只有簽到與簽退時間。",
+        "正確配對依序是：18:41 警報旁路開始、18:42 林書妍進入、18:54 旁路結束、18:56 恆溫箱出館。E4 不能單獨證明箱內是真跡；E3 不能單獨證明王冠宇全程留在 B1。",
+    ],
+}
+
 WITNESSES = {
     "curator": {
         "name": "林書妍",
@@ -175,12 +219,12 @@ CORRECT_CHALLENGES = {
 CULPRIT_ID = "curator"
 CORRECT_REASON_ID = "combined_evidence"
 FINAL_REASONS = {
-    "combined_evidence": "策展人的進出與警報紀錄、她簽核的運輸箱，以及展出的仿作彼此吻合。",
+    "combined_evidence": "E1、E2、E5 建立策展人的入場、警報旁路與畫作仿品；E4 顯示她簽核的空白貨箱隨後出館，幾項紀錄互相印證，但出庫單不能單獨證明箱內是真跡。",
     "guard": "保全否認警報異常，所以一定是保全偷走畫作。",
     "cleaner": "清潔員當晚仍在館內，所以他一定換走了畫作。",
 }
 
-MAX_WRONG_CHALLENGES = 3
+MAX_COURT_HINT_LEVEL = 3
 REQUIRED_CLUES = {"curator_access", "alarm_bypass"}
 
 # ---- 無 API Key 或 AI 失敗時的備援台詞 ----
@@ -337,3 +381,4 @@ FALLBACK_REPLIES = {
         ],
     },
 }
+
