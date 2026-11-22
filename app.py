@@ -1,4 +1,5 @@
 import base64
+import html
 import importlib
 import io
 import random
@@ -10,7 +11,12 @@ import streamlit as st
 
 import game_data
 
-if not game_data.EVIDENCE or "object_short" not in game_data.EVIDENCE[0] or not hasattr(game_data, "TIMELINE_PUZZLE"):
+if (
+    not game_data.EVIDENCE
+    or "object_short" not in game_data.EVIDENCE[0]
+    or not hasattr(game_data, "TIMELINE_PUZZLE")
+    or not hasattr(game_data, "PROLOGUE_PANELS")
+):
     game_data = importlib.reload(game_data)
 
 from ai_dialogue import (
@@ -32,6 +38,7 @@ from game_data import (
     FALLBACK_REPLIES,
     FINAL_REASONS,
     MAX_COURT_HINT_LEVEL,
+    PROLOGUE_PANELS,
     REQUIRED_CLUES,
     SCENE_IMAGES,
     STATEMENTS,
@@ -1107,6 +1114,30 @@ st.markdown(
     .timeline-item.locked { border-left-color: #4A4F57; }
     .timeline-item.locked .timeline-time,
     .timeline-item.locked .timeline-event { color: #7D838C; }
+    .prologue-shell { max-width: 1080px; margin: 1.2rem auto; }
+    .prologue-kicker { color: #DAB76A; letter-spacing: .16em; font-size: .78rem; font-weight: 800; }
+    .prologue-title { color: #F8F2E8; font-size: 2rem; margin: .25rem 0 .3rem; }
+    .prologue-intro { color: #C4BBAA; margin: 0 0 1.2rem; }
+    .comic-panel {
+        display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 0;
+        overflow: hidden; border: 1px solid #725B37; border-radius: 18px;
+        background: linear-gradient(130deg, #171A1F 0%, #211E19 100%);
+        box-shadow: 0 18px 46px rgba(0,0,0,.42); animation: comic-enter .42s ease-out both;
+    }
+    .comic-image-wrap { min-height: 350px; background: #101318; border-right: 1px solid #51442E; }
+    .comic-image-wrap img { display: block; width: 100%; height: 100%; min-height: 350px; max-height: 490px; object-fit: cover; }
+    .comic-copy { display: flex; flex-direction: column; justify-content: center; padding: clamp(1.2rem, 4vw, 2.5rem); }
+    .comic-chapter { color: #DAB76A; font-size: .82rem; letter-spacing: .08em; font-weight: 750; }
+    .comic-copy h2 { color: #F8F2E8; margin: .55rem 0 .9rem; font-size: clamp(1.45rem, 3vw, 2.1rem); }
+    .comic-copy p { color: #D2C8B7; line-height: 1.9; font-size: 1.03rem; }
+    .comic-caption { margin-top: .65rem; padding: .75rem .95rem; border-left: 3px solid #DAB76A; background: rgba(218,183,106,.1); color: #F3E3BE; border-radius: 0 10px 10px 0; }
+    @keyframes comic-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 760px) {
+        .comic-panel { grid-template-columns: 1fr; }
+        .comic-image-wrap { min-height: 220px; max-height: 320px; border-right: 0; border-bottom: 1px solid #51442E; }
+        .comic-image-wrap img { min-height: 220px; max-height: 320px; }
+        .prologue-title { font-size: 1.6rem; }
+    }
     /* 畫面變窄時欄位自動換行，避免文字被擠成細長直條 */
     div[data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
     div[data-testid="stColumn"], div[data-testid="column"] { min-width: min(100%, 17rem); }
@@ -1153,8 +1184,10 @@ INITIAL_GAME = {
 }
 
 
-def start_game() -> None:
+def start_game(*, show_prologue: bool = True) -> None:
     st.session_state["court_game"] = deepcopy(INITIAL_GAME)
+    st.session_state["intro_completed"] = not show_prologue
+    st.session_state["intro_panel_index"] = 0
     for key in (
         "active_page",
         "active_witness",
@@ -1357,6 +1390,8 @@ if "court_game" not in st.session_state:
     st.session_state["court_game"] = deepcopy(INITIAL_GAME)
 if "active_page" not in st.session_state:
     st.session_state["active_page"] = PAGES[0]
+st.session_state.setdefault("intro_completed", False)
+st.session_state.setdefault("intro_panel_index", 0)
 
 game = st.session_state["court_game"]
 for _key, _default in {
@@ -1372,6 +1407,54 @@ for _key, _default in {
     game.setdefault(_key, _default)
 page = st.session_state["active_page"]
 api_enabled = bool(get_api_key())
+
+if not st.session_state["intro_completed"]:
+    panel_index = min(st.session_state["intro_panel_index"], len(PROLOGUE_PANELS) - 1)
+    panel = PROLOGUE_PANELS[panel_index]
+    st.markdown(
+        "<div class='prologue-shell'>"
+        "<div class='prologue-kicker'>CASE FILE 01 · PROLOGUE</div>"
+        f"<h1 class='prologue-title'>《{html.escape(CASE_TITLE)}》</h1>"
+        "<p class='prologue-intro'>先翻開序章，再進入美術館調查。線索會逐格出現，真相留待你親自推理。</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.progress((panel_index + 1) / len(PROLOGUE_PANELS), text=f"漫畫序章｜第 {panel_index + 1} 格 / 共 {len(PROLOGUE_PANELS)} 格")
+    image_uri = get_image_data_uri(panel["image"])
+    if image_uri:
+        image_markup = (
+            f"<div class='comic-image-wrap'><img src='{image_uri}' "
+            f"alt='{html.escape(panel['alt'], quote=True)}'></div>"
+        )
+    else:
+        image_markup = "<div class='comic-image-wrap'></div>"
+    st.markdown(
+        "<section class='comic-panel'>"
+        f"{image_markup}"
+        "<div class='comic-copy'>"
+        f"<div class='comic-chapter'>{html.escape(panel['chapter'])}</div>"
+        f"<h2>{html.escape(panel['title'])}</h2>"
+        f"<p>{html.escape(panel['text'])}</p>"
+        f"<div class='comic-caption'>{html.escape(panel['caption'])}</div>"
+        "</div></section>",
+        unsafe_allow_html=True,
+    )
+    previous_col, skip_col, next_col = st.columns([1, 1, 1])
+    with previous_col:
+        if panel_index > 0 and st.button("← 上一格", use_container_width=True, key="prologue_previous"):
+            st.session_state["intro_panel_index"] = panel_index - 1
+            st.rerun()
+    with skip_col:
+        if st.button("⏭️ 跳過序章", use_container_width=True, key="prologue_skip"):
+            start_game(show_prologue=False)
+    with next_col:
+        if panel_index < len(PROLOGUE_PANELS) - 1:
+            if st.button("下一格 →", type="primary", use_container_width=True, key="prologue_next"):
+                st.session_state["intro_panel_index"] = panel_index + 1
+                st.rerun()
+        elif st.button("⚖️ 開始調查", type="primary", use_container_width=True, key="prologue_start"):
+            start_game(show_prologue=False)
+    st.stop()
 
 st.markdown(
     f"""
@@ -1425,7 +1508,7 @@ with st.sidebar:
         st.caption(f"自由提問每局最多 {MAX_AI_CALLS_PER_SESSION} 次 AI 呼叫（已用 {game['ai_calls']} 次）")
     else:
         st.info("💡 目前使用固定備援台詞；不需要 API Key 也能完整破案。")
-    if st.button("🔄 重新開始本局", use_container_width=True):
+    if st.button("🔄 重新開始本局（重看序章）", use_container_width=True):
         start_game()
 
 # 頂部五階段快速切換按鈕列：手機也保留足夠的按鈕寬度
@@ -1464,7 +1547,7 @@ if game["ending"]:
             st.success(f"## 🎉 {game['ending']['title']}\n\n{game['ending']['body']}")
         else:
             st.error(f"## 💥 {game['ending']['title']}\n\n{game['ending']['body']}")
-        if st.button("🔄 再玩一局（重新開始）", type="primary", use_container_width=True):
+        if st.button("🔄 再玩一局（重看序章）", type="primary", use_container_width=True):
             start_game()
     st.stop()
 
