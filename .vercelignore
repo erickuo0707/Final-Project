@@ -1,0 +1,11 @@
+# Ignore Streamlit Python files so Vercel deploys the static web edition + Node.js /api/ask cleanly
+app.py
+game_data.py
+ai_dialogue.py
+requirements.txt
+.streamlit/
+docs/
+AGENTS.md
+README.md
+__pycache__/
+*.pyc
