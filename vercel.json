@@ -1,5 +1,7 @@
 {
   "framework": null,
+  "buildCommand": "mkdir -p dist && cp index.html dist/ && cp -r web assets dist/",
+  "outputDirectory": "dist",
   "headers": [
     {
       "source": "/assets/(.*)",
