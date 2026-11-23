@@ -58,7 +58,16 @@ streamlit run app.py
 
 目前預設使用 `gemini-3.5-flash-lite`，每個玩家工作階段最多 8 次自由提問 AI 呼叫；同一個 Streamlit 程序每天最多 100 次。免費額度、可用模型與速率限制可能調整，請以 [Gemini API 官方定價頁](https://ai.google.dev/gemini-api/docs/pricing) 和 [模型清單](https://ai.google.dev/gemini-api/docs/models) 為準。啟用 Gemini 時，只會傳送自由輸入的問題、目前證人的公開設定和近期對話紀錄；不會傳送完整案件解答或其他玩家資料。免費層的資料處理方式可能與付費層不同，請勿輸入個人資料。
 
+## ⚡ Vercel 極速不休眠部署（推薦）
+
+本專案同時內建純網頁極速版（`index.html`、`web/`、`api/ask.js`、`vercel.json`），部署到 **Vercel** 可享免費全球 CDN、**永遠不休眠、打開不到 1 秒、所有場景與機關 0 延遲操作**：
+
+1. 使用 GitHub 帳號登入 [Vercel](https://vercel.com/) → 點選 **Add New… → Project**。
+2. 選擇 `erickuo0707/Final-Project`，Framework Preset 選 **Other**（不需要填 Build Command，Output Directory 留空）。
+3. （選填）若想啟用 Gemini 自由提問對話，在 **Environment Variables** 新增 `GEMINI_API_KEY`；不設定也能以固定備援台詞完整通關。
+4. 點選 **Deploy**，約 30 秒即可獲得永久免費的 `*.vercel.app` 網址。
+
 ## 專案狀態
 
-已完成視覺化互動版 MVP：包含「霧港館的第六個人」懸疑案件、四格漫畫序章、10 張專屬場景／立繪／證物插圖、2D 點擊現場探索空間、五階段引導列、時間線配對與證據範圍推理、逐步提示、證人秘密與怪談反轉、快捷追問、固定規則的法庭攻防，以及可選的 Gemini 對話。案件設定見 [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md)，AI 程式助理規則見 [`AGENTS.md`](AGENTS.md)。
+已完成視覺化互動版 MVP（同時支援 **Vercel 秒開不休眠純網頁版** 與 **Streamlit 版**）：包含「霧港館的第六個人」懸疑案件、四格漫畫序章、19 張專屬場景／漫畫／立繪／證物插圖、三層樓 6 區域互動解謎探索與 6 大機關、五階段引導列、暗金色時間線推理白板、逐步提示、快捷追問、固定規則的法庭攻防，以及可選的 Gemini 對話。案件設定見 [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md)，AI 程式助理規則見 [`AGENTS.md`](AGENTS.md)。
 
