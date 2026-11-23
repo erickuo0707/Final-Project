@@ -4,7 +4,7 @@
 
 ## 🎮 立即遊玩
 
-**遊戲網址：** https://final-project-emebz813x-eric3.vercel.app/
+**遊戲網址：** https://final-project-git-main-eric3.vercel.app/
 
 手機或電腦瀏覽器直接打開即可遊玩，不需登入。
 
