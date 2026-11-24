@@ -24,6 +24,160 @@
     ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
   ];
 
+  const SCENE_VIDEO_STEMS = {
+    gallery: "scene_museum",
+    security: "scene_security",
+    basement: "scene_basement",
+    restoration: "scene_restoration",
+    loading_dock: "scene_loading_dock",
+    curator_office: "scene_curator_office",
+  };
+
+  const SCENE_PORTALS = {
+    gallery: [
+      {
+        to: "security",
+        x: 86,
+        y: 74,
+        arrow: "↘",
+        icon: "🚪",
+        label: "東側拱門 → 中控區",
+        surface: "marble",
+        caption: "推開 B 展廳東側拱門，沿大理石階梯步下 1F 保全中控區…",
+      },
+      {
+        to: "curator_office",
+        x: 15,
+        y: 74,
+        arrow: "↖",
+        icon: "🕯️",
+        label: "西側迴廊 → 策展人室",
+        surface: "wood",
+        caption: "穿過寂靜的 2F 迴廊，推開策展人辦公室的胡桃木門…",
+      },
+    ],
+    security: [
+      {
+        to: "gallery",
+        x: 86,
+        y: 66,
+        arrow: "↗",
+        icon: "🪜",
+        label: "拱門階梯 ↑ 2F B 展廳",
+        surface: "stairs",
+        caption: "踏上夜色籠罩的大理石階梯，返回 2F B 展廳案發現場…",
+      },
+      {
+        to: "basement",
+        x: 44,
+        y: 84,
+        arrow: "↓",
+        icon: "⬇️",
+        label: "地下階梯 ↓ B1 器材室",
+        surface: "stairs",
+        caption: "沿著狹窄混凝土階梯步下 B1，空氣變得陰涼潮濕…",
+      },
+      {
+        to: "loading_dock",
+        x: 81,
+        y: 84,
+        arrow: "→",
+        icon: "📦",
+        label: "西側通道 → 裝卸區",
+        surface: "concrete",
+        caption: "推開中控室西側鐵門，海霧冷風從裝卸區迎面灌入…",
+      },
+    ],
+    basement: [
+      {
+        to: "security",
+        x: 34,
+        y: 52,
+        arrow: "↑",
+        icon: "🚪",
+        label: "EXIT B1 ↑ 中控區",
+        surface: "stairs",
+        caption: "推開沉重的 B1 防火門，沿階梯返回 1F 保全中控區…",
+      },
+      {
+        to: "restoration",
+        x: 52,
+        y: 54,
+        arrow: "→",
+        icon: "🎨",
+        label: "右側暗門 → 修復室 R-07",
+        surface: "concrete",
+        caption: "推開通往深處的修復室鐵門，幽暗的紫外線微光從門縫滲出…",
+      },
+    ],
+    restoration: [
+      {
+        to: "basement",
+        x: 15,
+        y: 55,
+        arrow: "←",
+        icon: "🧹",
+        label: "通道門 ← B1 器材室",
+        surface: "concrete",
+        caption: "離開瀰漫松節油氣味的修復室，步回 B1 地下器材室…",
+      },
+      {
+        to: "gallery",
+        x: 50,
+        y: 84,
+        arrow: "↑",
+        icon: "🪜",
+        label: "服務階梯 ↑ 2F B 展廳",
+        surface: "stairs",
+        caption: "沿館內服務階梯上樓，回到 2F B 展廳《海霧港灣》畫框前…",
+      },
+    ],
+    loading_dock: [
+      {
+        to: "security",
+        x: 15,
+        y: 54,
+        arrow: "←",
+        icon: "🛡️",
+        label: "館內側門 ← 中控區",
+        surface: "concrete",
+        caption: "關上吹著海風的裝卸區側門，折返 1F 保全中控區…",
+      },
+      {
+        to: "curator_office",
+        x: 85,
+        y: 58,
+        arrow: "↗",
+        icon: "🪜",
+        label: "西側階梯 ↑ 策展人室",
+        surface: "stairs",
+        caption: "沿西側專用樓梯拾級而上，前往 2F 策展人辦公室…",
+      },
+    ],
+    curator_office: [
+      {
+        to: "gallery",
+        x: 15,
+        y: 74,
+        arrow: "←",
+        icon: "🏛️",
+        label: "2F 迴廊 ← B 展廳",
+        surface: "wood",
+        caption: "帶上辦公室胡桃木門，沿昏暗迴廊步回 2F B 展廳…",
+      },
+      {
+        to: "loading_dock",
+        x: 84,
+        y: 83,
+        arrow: "↘",
+        icon: "⬇️",
+        label: "西側階梯 ↓ 裝卸區",
+        surface: "stairs",
+        caption: "從拱窗望了一眼霧港車道，沿側梯步下 1F 西側裝卸區…",
+      },
+    ],
+  };
+
   function esc(str) {
     return String(str ?? "")
       .replace(/&/g, "&amp;")
@@ -36,6 +190,7 @@
     return {
       introCompleted: false,
       introPanelIndex: 0,
+      soundMuted: false,
       activePage: PAGES[0],
       activeInfoTab: "bag",
       activeWitness: "curator",
@@ -51,6 +206,10 @@
       uvOn: false,
       peelPct: 0,
       nbPage: "1",
+      e3BookOpen: false,
+      e3BookSpread: 0,
+      auctionBookOpen: false,
+      auctionBookSpread: 0,
       kpCode: "",
       kpError: "",
       e1Unlocked: false,
@@ -106,6 +265,456 @@
 
   let state = loadState();
   let toastTimer = null;
+  let walkTransitionActive = false;
+  let walkFinishTimer = null;
+  let justArrivedScene = false;
+  let e1ShakeActive = false;
+  let e2Scanning = false;
+  let e2ShakeActive = false;
+  let brassShakeActive = false;
+  let lastDialAnim = null; // { idx, dir }
+  let lastBookFlip = null; // { bookId, dir }
+  let typewriterTimer = null;
+  let lastPeelSfxTs = 0;
+  let lastLightSfxTs = 0;
+  let wasAngleAligned = false;
+  const videoProbeCache = new Map();
+
+  /* ==================== WEB AUDIO SYNTHESIZED SFX ENGINE ==================== */
+  const SFX = (() => {
+    let ctx = null;
+    let noiseBuffer = null;
+
+    function getCtx() {
+      if (state.soundMuted) return null;
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
+      if (!ctx) ctx = new AudioCtx();
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      return ctx;
+    }
+
+    function getNoise(c) {
+      if (noiseBuffer && noiseBuffer.sampleRate === c.sampleRate) return noiseBuffer;
+      const len = c.sampleRate * 1.2;
+      const buf = c.createBuffer(1, len, c.sampleRate);
+      const data = buf.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1;
+        b0 = 0.997 * b0 + w * 0.029;
+        b1 = 0.985 * b1 + w * 0.032;
+        b2 = 0.950 * b2 + w * 0.048;
+        data[i] = Math.max(-1, Math.min(1, (b0 + b1 + b2 + w * 0.25) * 1.4));
+      }
+      noiseBuffer = buf;
+      return buf;
+    }
+
+    function tone(c, type, f1, f2, start, dur, vol) {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f1, start);
+      if (f2 && f2 !== f1) osc.frequency.exponentialRampToValueAtTime(Math.max(20, f2), start + dur);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(vol, start + Math.min(0.012, dur * 0.25));
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.start(start);
+      osc.stop(start + dur + 0.02);
+    }
+
+    function noiseBurst(c, filterType, freq1, freq2, q, start, dur, vol) {
+      const src = c.createBufferSource();
+      src.buffer = getNoise(c);
+      const filter = c.createBiquadFilter();
+      filter.type = filterType;
+      filter.Q.setValueAtTime(q, start);
+      filter.frequency.setValueAtTime(freq1, start);
+      if (freq2 && freq2 !== freq1) {
+        filter.frequency.exponentialRampToValueAtTime(Math.max(40, freq2), start + dur);
+      }
+      const gain = c.createGain();
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(vol, start + Math.min(0.015, dur * 0.25));
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(c.destination);
+      src.start(start);
+      src.stop(start + dur + 0.03);
+    }
+
+    return {
+      playUiTick() {
+        const c = getCtx();
+        if (!c) return;
+        tone(c, "triangle", 980, 560, c.currentTime, 0.04, 0.05);
+      },
+      playFootsteps(steps = 4, surface = "marble") {
+        const c = getCtx();
+        if (!c) return;
+        const t0 = c.currentTime;
+        // Subtle door latch click before stepping
+        tone(c, "triangle", 320, 150, t0, 0.05, 0.07);
+        noiseBurst(c, "bandpass", 650, 280, 2.2, t0 + 0.02, 0.08, 0.05);
+        const cfg = {
+          marble: { low: 105, tap: 640, dur: 0.09, gap: 0.27 },
+          wood: { low: 130, tap: 390, dur: 0.11, gap: 0.28 },
+          concrete: { low: 88, tap: 420, dur: 0.1, gap: 0.29 },
+          stairs: { low: 112, tap: 520, dur: 0.1, gap: 0.25 },
+        }[surface] || { low: 105, tap: 540, dur: 0.09, gap: 0.27 };
+
+        for (let i = 0; i < steps; i++) {
+          const ts = t0 + 0.12 + i * cfg.gap;
+          const pitchShift = i % 2 === 0 ? 1.0 : 0.9;
+          tone(c, "sine", cfg.low * pitchShift, 42, ts, cfg.dur, 0.16);
+          noiseBurst(c, "lowpass", cfg.tap * pitchShift, 180, 1.3, ts, cfg.dur + 0.04, 0.12);
+          // Soft distant museum hall echo
+          noiseBurst(c, "bandpass", cfg.tap * 0.7, 220, 1.8, ts + 0.09, 0.07, 0.035);
+        }
+      },
+      playLockedLatch() {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        tone(c, "square", 210, 155, t, 0.045, 0.06);
+        tone(c, "square", 175, 125, t + 0.08, 0.055, 0.06);
+      },
+      playPageFlip(isCover = false) {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        if (isCover) {
+          tone(c, "sine", 145, 62, t, 0.11, 0.12);
+          noiseBurst(c, "bandpass", 750, 1900, 1.4, t + 0.03, 0.22, 0.13);
+        } else {
+          noiseBurst(c, "bandpass", 1100, 2600, 1.8, t, 0.14, 0.11);
+          noiseBurst(c, "bandpass", 1900, 680, 1.5, t + 0.08, 0.13, 0.08);
+        }
+      },
+      playPaperPeel() {
+        const now = performance.now();
+        if (now - lastPeelSfxTs < 115) return;
+        lastPeelSfxTs = now;
+        const c = getCtx();
+        if (!c) return;
+        noiseBurst(c, "bandpass", 1500, 2800, 2.2, c.currentTime, 0.08, 0.065);
+      },
+      playKeyBeep(key) {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        if (key === "CLR") {
+          tone(c, "triangle", 390, 260, t, 0.08, 0.09);
+        } else if (key === "ENT") {
+          tone(c, "sine", 1180, 1420, t, 0.08, 0.09);
+        } else {
+          const n = Number(key) || 0;
+          const freq = 720 + n * 52;
+          tone(c, "sine", freq, freq, t, 0.055, 0.08);
+        }
+      },
+      playBootChime() {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        tone(c, "square", 520, 520, t, 0.045, 0.04);
+        tone(c, "square", 780, 780, t + 0.07, 0.045, 0.04);
+        tone(c, "sine", 1040, 1040, t + 0.14, 0.08, 0.05);
+      },
+      playErrorBuzz() {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        tone(c, "sawtooth", 185, 145, t, 0.13, 0.09);
+        tone(c, "sawtooth", 150, 118, t + 0.15, 0.17, 0.09);
+      },
+      playUnlockChime() {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, idx) => {
+          tone(c, "triangle", f, f, t + idx * 0.075, 0.24, 0.085);
+        });
+      },
+      playSwitchClick(isOn) {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        noiseBurst(c, "highpass", 1800, 1200, 1.5, t, 0.03, 0.1);
+        tone(c, "triangle", isOn ? 640 : 410, isOn ? 840 : 280, t + 0.008, 0.05, 0.085);
+      },
+      playRadarScan() {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        tone(c, "sine", 520, 1180, t, 0.25, 0.07);
+        tone(c, "sine", 1180, 620, t + 0.26, 0.26, 0.065);
+      },
+      playDialClick() {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        noiseBurst(c, "highpass", 2400, 1600, 2.0, t, 0.025, 0.11);
+        tone(c, "sine", 1980, 1450, t, 0.035, 0.065);
+        tone(c, "triangle", 3420, 2600, t + 0.005, 0.025, 0.04);
+      },
+      playBoxLatchOpen() {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        // Heavy brass bolt snap + wooden hinge creak + golden chord
+        tone(c, "square", 460, 190, t, 0.06, 0.09);
+        tone(c, "sawtooth", 175, 290, t + 0.09, 0.28, 0.035);
+        [440, 554.37, 659.25, 880].forEach((f, i) => {
+          tone(c, "sine", f, f, t + 0.18 + i * 0.07, 0.34, 0.075);
+        });
+      },
+      playLightTick() {
+        const now = performance.now();
+        if (now - lastLightSfxTs < 95) return;
+        lastLightSfxTs = now;
+        const c = getCtx();
+        if (!c) return;
+        tone(c, "sine", 620, 540, c.currentTime, 0.025, 0.03);
+      },
+      playGhostShimmer() {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        tone(c, "sine", 587.33, 622.25, t, 0.45, 0.055);
+        tone(c, "sine", 880, 932.33, t + 0.06, 0.42, 0.04);
+      },
+      playUvHum(isOn) {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        tone(c, "triangle", isOn ? 740 : 460, isOn ? 920 : 310, t, 0.05, 0.08);
+        if (isOn) {
+          tone(c, "sine", 120, 132, t + 0.05, 0.55, 0.06);
+          tone(c, "sine", 980, 1480, t + 0.06, 0.45, 0.035);
+        }
+      },
+      playSpotFound() {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        tone(c, "sine", 880, 1320, t, 0.14, 0.085);
+      },
+      playObjection(ok) {
+        const c = getCtx();
+        if (!c) return;
+        const t = c.currentTime;
+        tone(c, "sine", 140, 44, t, 0.18, 0.22);
+        noiseBurst(c, "lowpass", 600, 140, 1.2, t, 0.14, 0.16);
+        if (ok) {
+          [523.25, 659.25, 1046.5].forEach((f, i) => {
+            tone(c, "triangle", f, f, t + 0.08 + i * 0.06, 0.28, 0.085);
+          });
+        } else {
+          tone(c, "sawtooth", 190, 130, t + 0.1, 0.22, 0.08);
+        }
+      },
+    };
+  })();
+
+  function soundToggleBtnHtml(cls = "btn btn-sm") {
+    return `<button type="button" class="${cls} sound-toggle-btn ${state.soundMuted ? "is-muted" : ""}" data-toggle-sound="1" title="切換遊戲音效開關">${
+      state.soundMuted ? "🔇 已靜音" : "🔊 音效開"
+    }</button>`;
+  }
+
+  function buildDustMotesHtml(sceneId) {
+    const cool = sceneId === "restoration" || sceneId === "security";
+    const motes = [];
+    for (let i = 0; i < 18; i++) {
+      const left = ((i * 37 + 11) % 92) + 4;
+      const top = ((i * 53 + 17) % 80) + 12;
+      const size = 2.2 + (i % 4) * 1.1;
+      const dur = (7 + (i % 6) * 1.4).toFixed(1);
+      const delay = (-((i * 1.3) % 9)).toFixed(1);
+      const dx = ((i % 2 === 0 ? 1 : -1) * (10 + (i % 5) * 6)).toFixed(0);
+      const dx2 = ((i % 2 === 0 ? -1 : 1) * (8 + (i % 4) * 5)).toFixed(0);
+      const op = (0.35 + (i % 4) * 0.12).toFixed(2);
+      const isCool = cool && i % 2 === 0 ? " cool" : "";
+      motes.push(
+        `<span class="dust-mote${isCool}" style="left:${left}%;top:${top}%;width:${size}px;height:${size}px;--dur:${dur}s;--delay:${delay}s;--dx:${dx}px;--dx2:${dx2}px;--op:${op};"></span>`
+      );
+    }
+    return `
+      <div class="scene-atmosphere" aria-hidden="true">
+        <div class="scene-light-beam theme-${esc(sceneId)}"></div>
+        <div class="scene-dust-layer">${motes.join("")}</div>
+        <div class="scene-vignette"></div>
+      </div>`;
+  }
+
+  async function probeVideo(url) {
+    if (videoProbeCache.has(url)) return videoProbeCache.get(url);
+    try {
+      const resp = await fetch(url, { method: "HEAD" });
+      const ct = (resp.headers.get("content-type") || "").toLowerCase();
+      const ok = resp.ok && !ct.includes("text/html") && (ct.includes("video") || ct.includes("octet-stream") || url.endsWith(".mp4"));
+      videoProbeCache.set(url, ok);
+      return ok;
+    } catch (_) {
+      videoProbeCache.set(url, false);
+      return false;
+    }
+  }
+
+  async function findTransitionVideo(fromId, toId) {
+    const candidates = [`assets/videos/walk_${fromId}_to_${toId}.mp4`];
+    const stem = SCENE_VIDEO_STEMS[toId];
+    if (stem) candidates.push(`assets/videos/${stem}.mp4`);
+    for (const url of candidates) {
+      if (await probeVideo(url)) return url;
+    }
+    return null;
+  }
+
+  function defaultWalkMeta(fromId, toId) {
+    const found = (SCENE_PORTALS[fromId] || []).find((p) => p.to === toId);
+    if (found) return found;
+    const fromSc = SCENES_BY_ID[fromId] || GD.SCENES[0];
+    const toSc = SCENES_BY_ID[toId] || GD.SCENES[0];
+    const surface = fromSc.floor !== toSc.floor ? "stairs" : toSc.floor === "B1" ? "concrete" : "marble";
+    return {
+      x: 50,
+      y: 52,
+      surface,
+      caption: `沿美術館夜間通道前行，步入「${toSc.name}」…`,
+    };
+  }
+
+  async function navigateToScene(toId, portalMeta = null) {
+    if (!state.unlockedScenes.includes(toId)) {
+      SFX.playLockedLatch();
+      showToast(SCENES_BY_ID[toId]?.unlock_hint || "🔒 尚未解鎖此區域");
+      return;
+    }
+    const fromId = state.currentScene;
+    if (toId === fromId) {
+      if (state.activeOverlay) {
+        state.activeOverlay = null;
+        saveState();
+        render();
+      }
+      return;
+    }
+    if (walkTransitionActive) return;
+
+    // Close map/bag overlay first so player sees the transition inside the scene canvas
+    if (state.activeOverlay) {
+      state.activeOverlay = null;
+      saveState();
+      render();
+    }
+
+    const canvas = document.querySelector(".scene-canvas");
+    if (!canvas) {
+      state.currentScene = toId;
+      saveState();
+      render();
+      return;
+    }
+
+    walkTransitionActive = true;
+    const fromSc = SCENES_BY_ID[fromId] || GD.SCENES[0];
+    const toSc = SCENES_BY_ID[toId] || GD.SCENES[0];
+    const meta = portalMeta || defaultWalkMeta(fromId, toId);
+
+    const videoUrl = await findTransitionVideo(fromId, toId);
+
+    // Re-query canvas in case DOM changed during async probe
+    const liveCanvas = document.querySelector(".scene-canvas");
+    if (!liveCanvas) {
+      walkTransitionActive = false;
+      state.currentScene = toId;
+      saveState();
+      render();
+      return;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.className = `walk-transition-overlay ${videoUrl ? "mode-video" : "mode-walk"}`;
+    overlay.style.setProperty("--walk-ox", `${meta.x ?? 50}%`);
+    overlay.style.setProperty("--walk-oy", `${meta.y ?? 50}%`);
+
+    const routeTag = `${fromSc.floor} ${fromSc.short_name} ➔ ${toSc.floor} ${toSc.short_name}`;
+    const subtitleHtml = `
+      <div class="walk-vignette"></div>
+      <div class="walk-skip-hint">點擊可略過 ⏭</div>
+      <div class="walk-subtitle-box">
+        <div class="walk-route-tag">👣 ${esc(routeTag)}</div>
+        <div class="walk-caption-text">「${esc(meta.caption)}」</div>
+      </div>`;
+
+    let finished = false;
+    const finishWalk = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(walkFinishTimer);
+      walkTransitionActive = false;
+      justArrivedScene = true;
+      state.currentScene = toId;
+      saveState();
+      render();
+      setTimeout(() => {
+        justArrivedScene = false;
+      }, 700);
+    };
+
+    const mountCssWalk = () => {
+      overlay.className = "walk-transition-overlay mode-walk";
+      overlay.innerHTML = `
+        <img class="walk-layer-from" src="${esc(fromSc.image)}" alt="" />
+        <img class="walk-layer-to" src="${esc(toSc.image)}" alt="" />
+        ${subtitleHtml}`;
+      clearTimeout(walkFinishTimer);
+      walkFinishTimer = setTimeout(finishWalk, 1450);
+    };
+
+    if (videoUrl) {
+      overlay.innerHTML = `<video class="walk-video" src="${esc(videoUrl)}" autoplay muted playsinline preload="auto"></video>${subtitleHtml}`;
+      const vid = overlay.querySelector("video");
+      if (vid) {
+        vid.onended = finishWalk;
+        vid.onerror = () => mountCssWalk();
+        vid.play().catch(() => mountCssWalk());
+      }
+      walkFinishTimer = setTimeout(finishWalk, 4500);
+    } else {
+      mountCssWalk();
+    }
+
+    overlay.onclick = finishWalk;
+    liveCanvas.appendChild(overlay);
+    SFX.playFootsteps(4, meta.surface || "marble");
+  }
+
+  function startTerminalTypewriter(lines) {
+    clearInterval(typewriterTimer);
+    const el = document.getElementById("e1BootLog");
+    if (!el) return;
+    const full = lines.join("\n");
+    let pos = 0;
+    el.innerHTML = `<span class="crt-cursor"></span>`;
+    typewriterTimer = setInterval(() => {
+      pos += 2;
+      if (pos >= full.length) {
+        el.innerHTML = `${esc(full)}<span class="crt-cursor"></span>`;
+        clearInterval(typewriterTimer);
+      } else {
+        el.innerHTML = `${esc(full.slice(0, pos))}<span class="crt-cursor"></span>`;
+      }
+    }, 18);
+  }
 
   function saveState() {
     try {
@@ -144,8 +753,10 @@
 
   function resetGame(showPrologue = true) {
     const apiEnabled = state.apiEnabled;
+    const muted = state.soundMuted;
     state = createInitialState();
     state.apiEnabled = apiEnabled;
+    state.soundMuted = muted;
     state.introCompleted = !showPrologue;
     saveState();
     render();
@@ -162,19 +773,24 @@
   }
 
   function collectTarget(targetId) {
+    let newlyAdded = false;
     if (EVIDENCE_BY_ID[targetId]) {
       if (!state.viewedEvidence.includes(targetId)) {
         state.viewedEvidence.push(targetId);
+        newlyAdded = true;
       }
       if (targetId === "E1") state.e1Unlocked = true;
       if (targetId === "E2") state.e2Unlocked = true;
     } else if (ENV_BY_ID[targetId]) {
       if (!state.inspectedObjects.includes(targetId)) {
         state.inspectedObjects.push(targetId);
+        newlyAdded = true;
       }
       if (targetId === "OBJ_UV_EASEL") state.diffFound = { d1: true, d2: true, d3: true };
       if (targetId === "OBJ_BRASS_BOX") state.brassUnlocked = true;
     }
+    if (newlyAdded) SFX.playUnlockChime();
+    else SFX.playUiTick();
     syncSceneUnlocks();
     saveState();
     render();
@@ -266,8 +882,13 @@
     return `
       <div class="app-shell">
         <div class="prologue-shell">
-          <div class="prologue-kicker">CASE FILE 01 · INTERACTIVE COMIC PROLOGUE</div>
-          <h1 class="prologue-title">《${esc(GD.CASE_TITLE)}》</h1>
+          <div class="prologue-header-row">
+            <div>
+              <div class="prologue-kicker">CASE FILE 01 · INTERACTIVE COMIC PROLOGUE</div>
+              <h1 class="prologue-title">《${esc(GD.CASE_TITLE)}》</h1>
+            </div>
+            <div>${soundToggleBtnHtml("btn btn-sm")}</div>
+          </div>
           <p class="prologue-intro">先逐格翻開四格漫畫序章，再踏入市立霧港美術館展開三層樓 6 區域搜查。線索將逐步浮現，真相留待你親自推理。</p>
 
           <div class="prologue-chapters">
@@ -315,6 +936,208 @@
     `;
   }
 
+  /* ==================== RENDER: 3D PHYSICAL BOOK ==================== */
+  function buildBook3DHtml(bookId) {
+    const isE3 = bookId === "e3";
+    const isOpen = isE3 ? state.e3BookOpen : state.auctionBookOpen;
+    const spreadIdx = isE3 ? state.e3BookSpread : state.auctionBookSpread;
+
+    if (!isOpen) {
+      const coverTheme = isE3 ? "theme-logbook" : "theme-catalog";
+      const coverKicker = isE3 ? "FOG HARBOR MUSEUM · B1" : "FOG HARBOR AUCTION · FINAL PROOF";
+      const coverTitle = isE3 ? "市立霧港美術館\nB1 清潔勤務簿" : "霧港秋季名畫\n拍賣預展目錄";
+      const coverSub = isE3 ? "值班簽到・夜間異狀備忘" : "LOT 01《海霧港灣》校對清樣";
+      const coverStamp = isE3 ? "勤務紀錄" : "明早公開";
+      return `
+        <div class="book3d-wrap">
+          <div class="book3d-cover-stage">
+            <button type="button" class="book3d-closed" data-book-open="${bookId}">
+              <span class="book3d-spine"></span>
+              <span class="book3d-pages-edge"></span>
+              <span class="book3d-front ${coverTheme}">
+                <span class="book3d-cover-frame">
+                  <span class="book3d-cover-kicker">${esc(coverKicker)}</span>
+                  <span class="book3d-cover-title" style="white-space:pre-line;">${esc(coverTitle)}</span>
+                  <span style="font-size:0.72rem;opacity:0.86;line-height:1.4;">${esc(coverSub)}</span>
+                  <span class="book3d-cover-stamp">${esc(coverStamp)}</span>
+                </span>
+              </span>
+            </button>
+            <div class="book3d-open-cta">📖 點擊立體封面翻開實體書</div>
+          </div>
+        </div>
+      `;
+    }
+
+    const spreads = isE3
+      ? [
+          {
+            leftHdr: ["B1 清潔勤務簽到表", "案發當晚"],
+            leftNum: "P.01",
+            leftHtml: `
+              <table class="book-log-table">
+                <tr><th>值班人員</th><td>王冠宇（夜班清潔員）</td></tr>
+                <tr><th>值勤區域</th><td>B1 地下器材室</td></tr>
+                <tr><th>打卡簽到</th><td><b>18:30</b> 整理清潔推車</td></tr>
+                <tr><th>主管簽退</th><td><b>19:00</b> 核對完成 <span class="book-seal">核訖</span></td></tr>
+              </table>
+              <div style="font-size:0.71rem;color:#6c5332;line-height:1.45;">
+                ※ 勤務簿僅記載簽到、簽退兩筆時間戳記，未逐分鐘記錄中途是否離開器材室。
+              </div>`,
+            rightHdr: ["王冠宇夜間日記", "三晚前頁角"],
+            rightNum: "P.02",
+            rightHtml: `
+              <div style="font-weight:800;color:#4a3319;margin-bottom:0.22rem;">三晚前・閉館巡清筆記</div>
+              <div>
+                每天閉館後整理完器材，偶爾會經過 2F 展廳走廊。偏偏一到
+                <span class="red-pen-circle">18:42</span>
+                ，展廳側光轉暗，畫框玻璃裡就多出一個人影……
+              </div>
+              <div class="red-pen-note" style="margin-top:0.3rem;">
+                「18:42，燈光轉暗，玻璃裡又多出一個人影。」
+              </div>
+              <div style="font-size:0.7rem;color:#7a5e39;margin-top:0.25rem;">
+                （紅筆用力圈出 18:42，像是怕自己忘記這個準點時間）
+              </div>`,
+          },
+          {
+            leftHdr: ["第六個人影手繪速寫", "鉛筆＋紅筆註記"],
+            leftNum: "P.03",
+            leftHtml: `
+              <div style="font-size:0.73rem;font-weight:700;margin-bottom:0.25rem;">展廳玻璃反射人影草圖：</div>
+              <div class="sketch-svg-wrap" style="margin-top:0.15rem;">
+                <svg viewBox="0 0 240 94" width="100%" height="92" aria-hidden="true">
+                  <rect x="6" y="6" width="228" height="82" rx="4" fill="#f7eedb" stroke="#5c462c" stroke-width="1.6" stroke-dasharray="5 3"/>
+                  <line x1="16" y1="16" x2="224" y2="78" stroke="rgba(180,130,60,0.35)" stroke-width="1" stroke-dasharray="3 3"/>
+                  <g fill="#73634f" opacity="0.52">
+                    <circle cx="32" cy="34" r="5.5"/><path d="M23 76 C23 54 41 54 41 76 Z"/>
+                    <circle cx="62" cy="34" r="5.5"/><path d="M53 76 C53 54 71 54 71 76 Z"/>
+                    <circle cx="92" cy="34" r="5.5"/><path d="M83 76 C83 54 101 54 101 76 Z"/>
+                    <circle cx="122" cy="34" r="5.5"/><path d="M113 76 C113 54 131 54 131 76 Z"/>
+                    <circle cx="152" cy="34" r="5.5"/><path d="M143 76 C143 54 161 54 161 76 Z"/>
+                  </g>
+                  <g fill="#b91c1c" opacity="0.9">
+                    <circle cx="196" cy="30" r="6.5"/><path d="M185 78 C186 50 206 50 207 78 Z"/>
+                  </g>
+                  <text x="170" y="21" fill="#b91c1c" font-size="11" font-weight="900">18:42 紅筆圈記</text>
+                  <text x="16" y="84" fill="#5c462c" font-size="9">五名觀眾倒影 → 第六道女子輪廓</text>
+                </svg>
+              </div>`,
+            rightHdr: ["夾頁便條", "B1 器材室備忘"],
+            rightNum: "P.04",
+            rightHtml: `
+              <div style="font-size:0.73rem;color:#5a4326;">夾在勤務簿末頁的一張黃色便條紙：</div>
+              <div class="sticky-note-r07">
+                <b>📌 R-07 借調便條（修復室留存）</b><br/>
+                • 編號：<b>R-07</b>（《海霧港灣》教學臨摹框）<br/>
+                • 存放處：B1 修復室 R-07<br/>
+                • 調閱登記：2F 策展人室<br/>
+                • 備註：外框扣具與 B 展廳規格一致，切勿刮損清漆底片。
+              </div>
+              <div style="margin-top:0.35rem;font-size:0.7rem;color:#7a5e39;">
+                ※ 記下紅筆時間碼 <b>1842</b>，或許能派上用場！
+              </div>`,
+          },
+        ]
+      : [
+          {
+            leftHdr: ["LOT 01｜拍賣目錄清樣", "最終校對稿"],
+            leftNum: "P.01",
+            leftHtml: `
+              <div style="font-weight:900;font-size:0.86rem;color:#1d3b2f;">LOT 01《海霧港灣》</div>
+              <div style="margin:0.25rem 0;">
+                標示作者：<span class="red-pen-strike">沈景川</span>
+                <span class="book-seal">董事會定案</span>
+              </div>
+              <div class="red-pen-note" style="margin-top:0.2rem;">
+                紅筆眉批：「應補列共同創作者林月琴？——董事會否決」
+              </div>
+              <div style="margin-top:0.3rem;font-size:0.72rem;">
+                發行排程：明早 09:00 公開。<br/>
+                頁邊紅筆圈記：<span class="red-pen-circle">18:42</span> 閉館後唯一空檔。
+              </div>`,
+            rightHdr: ["紫外線底片手繪速寫", "策展人眉批"],
+            rightNum: "P.02",
+            rightHtml: `
+              <div style="font-size:0.73rem;font-weight:700;">原作清漆下隱藏人像與署名速寫：</div>
+              <div class="sketch-svg-wrap" style="margin-top:0.15rem;background:#ece6f8;border-color:#7c3aed;">
+                <svg viewBox="0 0 240 88" width="100%" height="84" aria-hidden="true">
+                  <rect x="6" y="6" width="228" height="76" rx="4" fill="#1e1338" stroke="#7c3aed" stroke-width="1.5"/>
+                  <ellipse cx="92" cy="46" rx="48" ry="26" fill="rgba(167,139,250,0.22)"/>
+                  <circle cx="88" cy="28" r="9" fill="#e0f2fe" opacity="0.88"/>
+                  <path d="M74 74 C75 48 101 48 102 74 Z" fill="#c4b5fd" opacity="0.76"/>
+                  <text x="142" y="34" fill="#ddd6fe" font-size="9">清漆下覆蓋署名：</text>
+                  <text x="142" y="58" fill="#7dd3fc" font-size="20" font-weight="900">林月琴</text>
+                  <text x="142" y="73" fill="#c4b5fd" font-size="8.5">UV 365nm 兩週前底片</text>
+                </svg>
+              </div>
+              <div style="font-size:0.71rem;color:#5a4326;margin-top:0.25rem;">
+                外祖母林月琴的名字，絕不能在明早拍賣目錄裡再次消失。
+              </div>`,
+          },
+          {
+            leftHdr: ["夾附單據", "修復室借調便條"],
+            leftNum: "P.03",
+            leftHtml: `
+              <div class="sticky-note-r07" style="margin-top:0.15rem;">
+                <b>📌 R-07 借調便條（策展人核章）</b><br/>
+                • 仿作編號：<b>R-07</b><br/>
+                • 來源：B1 修復室 R-07 教學臨摹品<br/>
+                • 核對備註：尺寸與《海霧港灣》相符，但無清漆底層人像。<br/>
+                • 暗匣密碼提醒：<b>R - 0 - 7</b>
+              </div>
+              <div style="margin-top:0.35rem;font-size:0.71rem;color:#5a4326;">
+                桌旁黃銅雕花木匣的鎖頭刻度，恰好也是三碼編號。
+              </div>`,
+            rightHdr: ["退庫與舊畫室備忘", "林書妍手寫"],
+            rightNum: "P.04",
+            rightHtml: `
+              <div style="font-weight:800;color:#4a3319;margin-bottom:0.25rem;">恆溫箱轉運備忘：</div>
+              <div>• 出口通道：1F 西側裝卸區</div>
+              <div>• 放行時間：<b>18:56</b>（警報恢復後兩分鐘）</div>
+              <div>• 目標地點：<span class="red-pen-note">林月琴舊畫室</span></div>
+              <div style="margin-top:0.3rem;font-size:0.71rem;color:#6c5332;border-top:1px dashed #a88e68;padding-top:0.25rem;">
+                ※ 單憑校對稿與空貨物欄出庫單，還須結合門禁（E1）、警報（E2）與鑑定（E5）才能完整結案。
+              </div>`,
+          },
+        ];
+
+    const total = spreads.length;
+    const safeIdx = Math.max(0, Math.min(spreadIdx, total - 1));
+    const sp = spreads[safeIdx];
+    const flipAnim =
+      lastBookFlip && lastBookFlip.bookId === bookId
+        ? `<div class="book3d-turning-leaf flip-${lastBookFlip.dir}"></div>`
+        : "";
+
+    return `
+      <div class="book3d-wrap">
+        <div class="book3d-spread-shell">
+          <div class="book3d-ribbon"></div>
+          <div class="book3d-spread">
+            <div class="book3d-page left ${safeIdx > 0 ? "clickable-edge" : ""}" ${safeIdx > 0 ? `data-book-turn="${bookId},prev"` : ""}>
+              <div class="book3d-page-hdr"><span>${esc(sp.leftHdr[0])}</span><span>${esc(sp.leftHdr[1])}</span></div>
+              ${sp.leftHtml}
+              <span class="book3d-page-num">${sp.leftNum}</span>
+            </div>
+            <div class="book3d-page right ${safeIdx < total - 1 ? "clickable-edge" : ""}" ${safeIdx < total - 1 ? `data-book-turn="${bookId},next"` : ""}>
+              <div class="book3d-page-hdr"><span>${esc(sp.rightHdr[0])}</span><span>${esc(sp.rightHdr[1])}</span></div>
+              ${sp.rightHtml}
+              <span class="book3d-page-num">${sp.rightNum}</span>
+            </div>
+            ${flipAnim}
+          </div>
+          <div class="book3d-controls">
+            <button type="button" class="book3d-ctrl-btn" data-book-turn="${bookId},prev" ${safeIdx <= 0 ? "disabled" : ""}>◀ 上一頁</button>
+            <span class="book3d-page-indicator">第 ${safeIdx * 2 + 1}–${safeIdx * 2 + 2} 頁 / 共 ${total * 2} 頁</span>
+            <button type="button" class="book3d-ctrl-btn" data-book-turn="${bookId},next" ${safeIdx >= total - 1 ? "disabled" : ""}>下一頁 ▶</button>
+            <button type="button" class="book3d-ctrl-btn" data-book-close="${bookId}">📕 闔上封面</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   /* ==================== RENDER: 2D EXPLORER & PUZZLES ==================== */
   function buildEvidenceGadgetHtml(evId, imgSrc) {
     if (evId === "E1") {
@@ -322,9 +1145,17 @@
       const screenText = state.e1Unlocked
         ? "ACCESS GRANTED · 門禁日誌已解鎖"
         : state.kpError || (state.kpCode + "____").slice(0, 4);
+      const bootFallback = state.e1Unlocked
+        ? "> CODE 1842 ACCEPTED\n> GALLERY-B CCTV LOGS DECRYPTED [OK]"
+        : "> MUSEUM_SEC_OS v3.4 ONLINE\n> LINK: 2F GALLERY-B CCTV [LOCKED]\n> AUTH: ENTER 4-DIGIT TIME CODE_";
       return `
-        <div class="puzzle-panel">
-          <div style="font-size:0.75rem;color:#79C0FF;font-weight:800;">🔐 關卡｜中控主機 4 位數時間密碼鎖</div>
+        <div class="puzzle-panel crt-terminal ${e1ShakeActive ? "crt-shake" : ""}">
+          <div class="crt-scanlines" aria-hidden="true"></div>
+          <div style="font-size:0.75rem;color:#79C0FF;font-weight:800;display:flex;justify-content:space-between;align-items:center;">
+            <span>🔐 關卡｜中控主機 4 位數時間密碼鎖</span>
+            <span style="font-size:0.68rem;color:#7ee787;">CRT // LIVE</span>
+          </div>
+          <div class="crt-boot-log" id="e1BootLog">${esc(bootFallback)}<span class="crt-cursor"></span></div>
           <div class="puzzle-screen ${screenCls}">${esc(screenText)}</div>
           <div class="keypad-grid">
             ${["1", "2", "3", "4", "5", "6", "7", "8", "9"]
@@ -335,37 +1166,70 @@
             <button type="button" class="kp-btn enter" data-kp-key="ENT">✓ 解鎖</button>
           </div>
           <button type="button" class="puzzle-hint-btn" data-toggle-hint="#hint-e1">💡 查看密碼線索提示</button>
-          <div class="puzzle-hint-text" id="hint-e1">提示：回想序章或 B1 勤務簿第 2 頁寫著「＿＿：＿＿，燈光轉暗，第六個人又出現了」的 4 位數字（答案：1842）。</div>
+          <div class="puzzle-hint-text" id="hint-e1">提示：回想序章或 B1 勤務簿紅筆圈記「＿＿：＿＿，燈光轉暗，第六個人又出現了」的 4 位數字（答案：1842）。</div>
         </div>
       `;
     }
     if (evId === "E2") {
+      const beaconState = state.e2Unlocked
+        ? "state-ok"
+        : e2Scanning
+        ? "state-scanning"
+        : state.e2Error
+        ? "state-error"
+        : "state-idle";
+      const beaconLabel = state.e2Unlocked
+        ? "STATUS: 2F-B BYPASS RESTORED"
+        : e2Scanning
+        ? "SCANNING ZONE SENSORS..."
+        : state.e2Error
+        ? "ALERT: ZONE MISMATCH"
+        : "STANDBY · SELECT TARGET ZONE";
       const screenCls = state.e2Unlocked ? "unlocked" : state.e2Error ? "error" : "";
       const screenText = state.e2Unlocked
         ? "⚠️ ZONE 2F-B 偵測到旁路日誌 · 已還原"
-        : state.e2Error || "請切換案發分區開關並掃描";
+        : e2Scanning
+        ? "📡 掃描防盜分區訊號中…"
+        : state.e2Error || "請撥動案發分區開關並掃描";
       const zones = [
         ["2F-A", "ZONE 2F-A（A 展廳常設展）"],
         ["2F-B", "ZONE 2F-B（B 展廳《海霧港灣》）"],
         ["1F-W", "ZONE 1F-W（1F 西側裝卸區）"],
       ];
       return `
-        <div class="puzzle-panel">
+        <div class="puzzle-panel ${e2ShakeActive ? "crt-shake" : ""}">
           <div style="font-size:0.75rem;color:#E3B341;font-weight:800;">🎛️ 關卡｜分區防盜警報開關檢測器</div>
+          <div class="alarm-beacon-bar ${beaconState}">
+            <div class="beacon-lamps">
+              <span class="beacon-lamp amber"></span>
+              <span class="beacon-lamp"></span>
+              <span class="beacon-lamp amber"></span>
+            </div>
+            <span style="font-family:ui-monospace,Menlo,monospace;font-size:0.68rem;color:#d8cfc0;font-weight:700;">${beaconLabel}</span>
+          </div>
+          <div class="alarm-scan-track ${e2Scanning ? "is-scanning" : state.e2Unlocked ? "is-ok" : ""}">
+            <div class="alarm-scan-bar"></div>
+          </div>
           <div class="puzzle-screen ${screenCls}">${esc(screenText)}</div>
           <div class="switch-list">
             ${zones
               .map(([z, label]) => {
                 const on = Boolean(state.e2Zones[z]);
                 return `<button type="button" class="zone-switch-btn ${on ? "is-on" : ""}" data-zone-sw="${z}">
-                  <span>${label}</span><span class="sw-pill">${on ? "SCAN ON" : "OFF"}</span>
+                  <span style="display:inline-flex;align-items:center;gap:0.45rem;"><span class="zone-led"></span><span>${label}</span></span>
+                  <span class="rocker-wrap">
+                    <span class="rocker-track"><span class="rocker-thumb"></span></span>
+                    <span class="sw-pill">${on ? "ON" : "OFF"}</span>
+                  </span>
                 </button>`;
               })
               .join("")}
           </div>
-          <button type="button" class="gadget-toggle-btn" data-action="e2-scan">📡 掃描選定分區的旁路日誌</button>
+          <button type="button" class="gadget-toggle-btn" data-action="e2-scan" ${e2Scanning ? "disabled" : ""}>
+            ${e2Scanning ? "📡 正在掃描分區警示迴路…" : "📡 掃描選定分區的旁路日誌"}
+          </button>
           <button type="button" class="puzzle-hint-btn" data-toggle-hint="#hint-e2">💡 查看操作提示</button>
-          <div class="puzzle-hint-text" id="hint-e2">提示：《海霧港灣》位於 2F B 展廳。請單獨開啟「ZONE 2F-B」，保持其餘兩區為 OFF 再按下掃描！</div>
+          <div class="puzzle-hint-text" id="hint-e2">提示：《海霧港灣》位於 2F B 展廳。請單獨撥開「ZONE 2F-B」，保持其餘兩區為 OFF 再按下掃描！</div>
         </div>
       `;
     }
@@ -373,11 +1237,14 @@
       const angle = state.lightAngle;
       const angleHit = angle >= 42 && angle <= 56;
       const shadowOp = Math.max(0, 1 - Math.abs(angle - 48) / 24).toFixed(2);
+      const beamX = ((angle / 90) * 76 - 10).toFixed(1);
+      const beamRot = (angle - 48).toFixed(1);
+      const beamOp = (0.35 + Number(shadowOp) * 0.55).toFixed(2);
       const statusHtml = state.uvOn
-        ? "🟣 <b>UV 365nm 顯影成功！</b>清漆底下浮出女子剪影與被覆蓋的署名<b>「林月琴」</b>，畫框角落確認為 <b>R-07</b> 仿作！"
+        ? "🟣 <b>UV 365nm 掃描線顯影成功！</b>清漆底下浮出女子剪影與被覆蓋的署名<b>「林月琴」</b>，畫框角落確認為 <b>R-07</b> 仿作！"
         : angleHit
-        ? "🟡 <b>側光角度對齊（48°）！</b>斜光照在玻璃上浮出第六道人影。再按上方「紫外線燈」檢視清漆底下吧！"
-        : "⚪ 請先拖動上方「夜間側光角度拉桿」重現 18:42 玻璃人影，再開啟紫外線燈照射！";
+        ? "🟡 <b>側光角度對齊（48°）！</b>金色斜射光束在玻璃上浮出第六道人影。再按上方「紫外線燈」進行紫光掃描顯影！"
+        : "⚪ 請先拖動上方「夜間側光角度拉桿」滑動金色光束重現 18:42 玻璃人影，再開啟紫外線燈照射！";
       return `
         <div class="gadget-box">
           <div class="angle-control">
@@ -385,22 +1252,27 @@
             <input type="range" class="angle-slider" min="0" max="90" value="${angle}" data-gadget="light-angle" />
           </div>
           <button type="button" class="gadget-toggle-btn uv-btn ${state.uvOn ? "active" : ""}" data-gadget="uv-toggle">
-            ${state.uvOn ? "💡 關閉紫外線燈（切回白光）" : "🔦 步驟 2｜開啟紫外線燈照射底片"}
+            ${state.uvOn ? "💡 關閉紫外線燈（切回白光）" : "🔦 步驟 2｜開啟紫外線燈紫光掃描顯影"}
           </button>
-          <div class="uv-viewport ${state.uvOn ? "uv-on" : ""}">
+          <div class="uv-viewport ${state.uvOn ? "uv-on" : ""} ${angleHit ? "angle-aligned" : ""}">
             <img src="${esc(imgSrc)}" alt="海霧港灣紫外線底片檢視" />
+            <div class="golden-light-beam" style="transform:translateX(${beamX}%) rotate(${beamRot}deg);opacity:${state.uvOn ? "0.14" : beamOp};"></div>
             <div class="uv-side-shadow" style="opacity:${shadowOp}">
-              <svg width="74" height="110" viewBox="0 0 60 90" aria-hidden="true" style="filter:drop-shadow(0 0 10px rgba(255,230,160,0.85));">
-                <circle cx="30" cy="18" r="10" fill="rgba(255,244,210,0.72)"/>
-                <path d="M16 86 C17 48 21 34 30 34 C39 34 43 48 44 86 Z" fill="rgba(255,244,210,0.58)"/>
+              <svg width="74" height="110" viewBox="0 0 60 90" aria-hidden="true" style="filter:drop-shadow(0 0 12px rgba(255,226,145,0.92));">
+                <circle cx="30" cy="18" r="10" fill="rgba(255,244,210,0.78)"/>
+                <path d="M16 86 C17 48 21 34 30 34 C39 34 43 48 44 86 Z" fill="rgba(255,244,210,0.62)"/>
               </svg>
             </div>
+            <div class="uv-scan-beam" aria-hidden="true"></div>
             <div class="uv-reveal-layer">
-              <span class="uv-badge">UV 365nm · 原作清漆下顯影</span>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;">
+                <span class="uv-badge">UV 365nm · 原作清漆下顯影</span>
+                <span class="uv-r07-tag">畫框編號：R-07</span>
+              </div>
               <div class="uv-signature-bar">
-                <svg width="72" height="92" viewBox="0 0 60 80" aria-hidden="true" style="opacity:0.88;filter:drop-shadow(0 0 8px #A78BFA);">
-                  <circle cx="30" cy="18" r="10" fill="rgba(224,242,254,0.82)"/>
-                  <path d="M16 76 C17 44 21 32 30 32 C39 32 43 44 44 76 Z" fill="rgba(224,242,254,0.72)"/>
+                <svg width="72" height="92" viewBox="0 0 60 80" aria-hidden="true" style="opacity:0.9;filter:drop-shadow(0 0 10px #A78BFA);">
+                  <circle cx="30" cy="18" r="10" fill="rgba(224,242,254,0.85)"/>
+                  <path d="M16 76 C17 44 21 32 30 32 C39 32 43 44 44 76 Z" fill="rgba(224,242,254,0.75)"/>
                 </svg>
                 <div style="text-align:right;">
                   <div style="font-size:0.68rem;color:#DDD6FE;font-weight:700;">清漆下被覆蓋的原作署名</div>
@@ -415,64 +1287,37 @@
     }
     if (evId === "E4") {
       const pct = state.peelPct;
+      const curlW = pct <= 2 || pct >= 99 ? 0 : Math.min(44, Math.max(14, Math.sin((pct / 100) * Math.PI) * 46));
+      const curlSkew = ((pct / 100) * -4.5).toFixed(1);
       return `
         <div class="gadget-box">
           <div class="angle-control">
-            <label><span>📄 滑動掀開白色正本</span><span class="peel-val-display">${pct >= 65 ? `已掀開 ${pct}% ✅ 露出「林月琴舊畫室」！` : `已掀開 ${pct}%（向右拖動）`}</span></label>
+            <label><span>📄 捲角掀開白色正本</span><span class="peel-val-display">${pct >= 65 ? `已掀開 ${pct}% ✅ 露出「林月琴舊畫室」！` : `已掀開 ${pct}%（向右拖動捲開紙角）`}</span></label>
             <input type="range" class="angle-slider" min="0" max="100" value="${pct}" data-gadget="carbon-peel" />
+            <div class="peel-quick-row">
+              <button type="button" class="book3d-ctrl-btn" data-peel-preset="0" style="flex:1;">📄 蓋回正本</button>
+              <button type="button" class="book3d-ctrl-btn" data-peel-preset="100" style="flex:1;">🖐️ 一鍵掀開複寫聯</button>
+            </div>
           </div>
           <div class="peel-stage">
             <div><b>【第二聯｜底部藍色複寫聯壓痕】</b></div>
             <div>正本塗改後，墊在底下的藍色複寫紙清晰印出目的地：</div>
             <span class="carbon-stamp traced">📍 運送目的地：林月琴舊畫室</span>
             <div style="margin-top:0.35rem;font-size:0.74rem;">※ 註：貨物欄依舊空白，複寫聯能證明去向，不能單獨證明箱內物品。</div>
-            <div class="peel-top-sheet" style="transform:translateX(-${pct}%)">
+            <div class="peel-top-sheet" style="clip-path:inset(0 ${pct}% 0 0);">
               <div><b>【第一聯｜白色正本存根】</b></div>
               <div>放行時間：18:56 ｜ 出口：1F 西側裝卸區</div>
               <div>項目：恆溫運輸箱 1 只（標示：器材退庫）｜簽核：林書妍</div>
               <span class="carbon-stamp blank">箱內物品欄：【空白未填】</span>
+              <span class="peel-corner-dogear"></span>
             </div>
+            <div class="peel-curl-flap" style="right:${pct}%;width:${curlW.toFixed(1)}px;opacity:${curlW > 0 ? 1 : 0};transform:skewY(${curlSkew}deg);"></div>
           </div>
         </div>
       `;
     }
     if (evId === "E3") {
-      const p1 = state.nbPage === "1";
-      return `
-        <div class="gadget-box">
-          <div class="nb-tabs">
-            <button type="button" class="nb-tab-btn ${p1 ? "active" : ""}" data-nb-page="1">📋 第 1 頁：當晚簽到表</button>
-            <button type="button" class="nb-tab-btn ${!p1 ? "active" : ""}" data-nb-page="2">✏️ 第 2 頁：三晚前頁角速寫</button>
-          </div>
-          <div class="nb-page ${p1 ? "active" : ""}">
-            <div><b>B1 地下器材室｜清潔勤務簽到欄</b></div>
-            <div>• 值班人員：王冠宇（清潔員）</div>
-            <div>• <b>18:30</b> 打卡簽到（B1 器材室整理清潔車）</div>
-            <div>• <b>19:00</b> 值班主管核對簽退</div>
-            <div style="margin-top:0.3rem;font-size:0.74rem;color:#6E5836;">※ 僅有起訖兩個時間戳記，未逐分鐘記錄行蹤。</div>
-          </div>
-          <div class="nb-page ${!p1 ? "active" : ""}">
-            <div><b>三晚前頁角手寫筆記（王冠宇筆跡）：</b></div>
-            <div style="font-weight:800;color:#5C2B18;margin:0.2rem 0;">「18:42，燈光轉暗，玻璃裡又多出一個人影。」</div>
-            <div class="sketch-svg-wrap">
-              <svg viewBox="0 0 260 66" width="100%" height="58" aria-hidden="true">
-                <rect x="8" y="6" width="244" height="54" rx="4" fill="none" stroke="#5C4B38" stroke-width="1.5" stroke-dasharray="4 3"/>
-                <g fill="#6D5D4B" opacity="0.55">
-                  <circle cx="34" cy="24" r="5"/><path d="M26 52 C26 36 42 36 42 52 Z"/>
-                  <circle cx="66" cy="24" r="5"/><path d="M58 52 C58 36 74 36 74 52 Z"/>
-                  <circle cx="98" cy="24" r="5"/><path d="M90 52 C90 36 106 36 106 52 Z"/>
-                  <circle cx="130" cy="24" r="5"/><path d="M122 52 C122 36 138 36 138 52 Z"/>
-                  <circle cx="162" cy="24" r="5"/><path d="M154 52 C154 36 170 36 170 52 Z"/>
-                </g>
-                <g fill="#9E2A2B">
-                  <circle cx="212" cy="21" r="6"/><path d="M202 54 C203 33 221 33 222 54 Z"/>
-                </g>
-                <text x="230" y="24" fill="#9E2A2B" font-size="11" font-weight="bold">18:42</text>
-              </svg>
-            </div>
-          </div>
-        </div>
-      `;
+      return buildBook3DHtml("e3");
     }
     return "";
   }
@@ -494,7 +1339,7 @@
               <div>
                 <div class="board-kicker">FOG HARBOR MUSEUM // 3-FLOOR INTERACTIVE MAP</div>
                 <div class="board-title">🗺️ 市立霧港美術館三層樓導覽（已解鎖 ${state.unlockedScenes.length} / ${GD.SCENES.length} 區域）</div>
-                <div class="board-sub">點擊任一已解鎖房間即可直接切換樓層；未解鎖區域會顯示解鎖所需線索。</div>
+                <div class="board-sub">點擊任一已解鎖房間即會步行切換樓層；未解鎖區域會顯示解鎖所需線索。</div>
               </div>
               <button type="button" class="board-close-btn" data-close-overlay="1">↩️ 返回現場</button>
             </div>
@@ -505,7 +1350,7 @@
                     .map((sc) => {
                       const unlocked = state.unlockedScenes.includes(sc.id);
                       const isCur = sc.id === state.currentScene;
-                      const status = !unlocked ? "🔒 尚未解鎖" : isCur ? "📍 目前所在" : "👉 點擊前往";
+                      const status = !unlocked ? "🔒 尚未解鎖" : isCur ? "📍 目前所在" : "👣 步行前往";
                       return `
                         <button type="button" class="map-room-card ${!unlocked ? "locked" : isCur ? "current" : ""}" data-jump-scene="${sc.id}">
                           <div style="display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:0.9rem;">
@@ -571,7 +1416,7 @@
       const collected = state.viewedEvidence.includes(ovId);
       const gadgetHtml = buildEvidenceGadgetHtml(ovId, item.image);
       const leftVisual =
-        ovId === "E1" || ovId === "E2" || ovId === "E5"
+        ovId === "E1" || ovId === "E2" || ovId === "E5" || ovId === "E3"
           ? `<div>${gadgetHtml}<div class="board-photo-cap" style="margin-top:0.45rem;border-radius:8px;">📍 現場位置：${esc(item.scene_spot)}</div></div>`
           : `<div><div class="board-photo-box"><img src="${esc(item.image)}" alt="現場實物特寫" /><div class="board-photo-cap">📍 現場位置：${esc(item.scene_spot)}</div></div>${gadgetHtml}</div>`;
 
@@ -579,7 +1424,7 @@
       const lockMsg =
         ovId === "E1"
           ? "🔐 請先在左側金屬鍵盤輸入 4 位數時間碼（1842）解鎖終端機"
-          : "🎛️ 請先在左側將「ZONE 2F-B」切換至 SCAN ON 並按下掃描還原紀錄";
+          : "🎛️ 請先在左側將「ZONE 2F-B」撥動開關切至 ON 並按下掃描還原紀錄";
 
       const rowsHtml = cfg.rows
         .map(
@@ -642,7 +1487,9 @@
           <div class="board-unlock-hint">${esc(obj.unlock_msg)}</div>
         </div>`;
 
-      if (obj.puzzle_type === "spot_diff") {
+      if (ovId === "OBJ_AUCTION_DRAFT") {
+        leftBlock = `<div>${buildBook3DHtml("auction")}<div class="board-photo-cap" style="margin-top:0.45rem;border-radius:8px;">📍 所在空間：${scInfo.icon} ${esc(scInfo.name)}（點擊封面 3D 翻開）</div></div>`;
+      } else if (obj.puzzle_type === "spot_diff") {
         const cnt = ["d1", "d2", "d3"].filter((k) => state.diffFound[k]).length;
         const locked = cnt < 3 && !checked;
         leftBlock = `
@@ -672,28 +1519,39 @@
           </div>`;
       } else if (obj.puzzle_type === "brass_dial") {
         const locked = !state.brassUnlocked && !checked;
+        const isOpen = state.brassUnlocked || checked;
         const curCode = [0, 1, 2].map((i) => WHEEL_SETS[i][state.dialIdx[i]]).join("-");
-        const screenCls = state.brassUnlocked ? "unlocked" : state.dialError ? "error" : "";
-        const screenText = state.brassUnlocked
-          ? "🔓 喀噠！黃銅木匣已開啟（編號 R-07）"
+        const screenCls = isOpen ? "unlocked" : state.dialError ? "error" : "";
+        const screenText = isOpen
+          ? "🔓 喀噠！黃銅木匣已彈開（編號 R-07）"
           : state.dialError || `鎖頭刻度：${curCode}`;
         leftBlock = `
-          <div class="puzzle-panel brass-theme">
-            <div style="font-size:0.78rem;color:#E8C574;font-weight:800;">🔐 三輪黃銅密碼箱｜轉出仿作編號解鎖</div>
+          <div class="puzzle-panel brass-theme ${brassShakeActive ? "crt-shake" : ""}">
+            <div style="font-size:0.78rem;color:#E8C574;font-weight:800;">🔐 三輪黃銅密碼箱｜喀噠轉輪對齊仿作編號</div>
+            <div class="brass-box-visual ${isOpen ? "is-open" : ""}">
+              <span class="brass-box-status-pill">${isOpen ? "🔓 木匣已開啟" : "🔒 黃銅扣鎖緊閉"}</span>
+              <div class="brass-chest">
+                <div class="brass-inner-glow"></div>
+                <div class="brass-box-lid"></div>
+                <div class="brass-chest-base"></div>
+                <div class="brass-clasp"></div>
+              </div>
+            </div>
             <div class="puzzle-screen ${screenCls}">${esc(screenText)}</div>
             <div class="dial-row">
               ${[0, 1, 2]
-                .map(
-                  (i) => `
+                .map((i) => {
+                  const spinCls = lastDialAnim && lastDialAnim.idx === i ? `spin-${lastDialAnim.dir}` : "";
+                  return `
                 <div class="dial-col">
                   <button type="button" class="dial-step-btn" data-dial-step="${i},1">▲</button>
-                  <div class="dial-val">${WHEEL_SETS[i][state.dialIdx[i]]}</div>
+                  <div class="dial-drum ${spinCls}"><div class="dial-val">${WHEEL_SETS[i][state.dialIdx[i]]}</div></div>
                   <button type="button" class="dial-step-btn" data-dial-step="${i},-1">▼</button>
-                </div>`
-                )
+                </div>`;
+                })
                 .join("")}
             </div>
-            <button type="button" class="gadget-toggle-btn" data-action="brass-open">🔓 嘗試開啟黃銅木匣</button>
+            <button type="button" class="gadget-toggle-btn" data-action="brass-open">${isOpen ? "🔓 木匣蓋已掀開" : "🔓 扣動鎖扣・嘗試開啟黃銅木匣"}</button>
             <button type="button" class="puzzle-hint-btn" data-toggle-hint="#hint-brass">💡 查看密碼提示</button>
             <div class="puzzle-hint-text" id="hint-brass">提示：林書妍用來調包《海霧港灣》的修復室仿作編號是哪三碼？（答案：R - 0 - 7）</div>
           </div>`;
@@ -781,6 +1639,17 @@
       })
       .join("");
 
+    const roomPortals = (SCENE_PORTALS[curSc.id] || [])
+      .map((portal, pIdx) => {
+        const unlocked = state.unlockedScenes.includes(portal.to);
+        return `
+          <button type="button" class="scene-portal-spot ${unlocked ? "" : "is-locked"}" data-portal-idx="${pIdx}" style="left:${portal.x}%;top:${portal.y}%;" title="${esc(unlocked ? portal.caption : SCENES_BY_ID[portal.to]?.unlock_hint || "尚未解鎖")}">
+            <span class="portal-arrow">${unlocked ? portal.arrow : "🔒"}</span>
+            <span>${portal.icon} ${esc(portal.label)}</span>
+          </button>`;
+      })
+      .join("");
+
     let tabContent = "";
     if (state.activeInfoTab === "bag") {
       if (!state.viewedEvidence.length) {
@@ -807,7 +1676,7 @@
           <div style="margin-top:0.8rem;">
             ${
               rem > 0
-                ? `<div class="alert alert-info">🔎 館內六個區域還有 <b>${rem} 項尚未發現的核心證物</b>，切換上方場景或打開「🗺️ 館內地圖」繼續探索吧！</div>`
+                ? `<div class="alert alert-info">🔎 館內六個區域還有 <b>${rem} 項尚未發現的核心證物</b>，點擊畫面門口／樓梯熱區、切換上方場景或打開「🗺️ 館內地圖」繼續探索吧！</div>`
                 : `<div class="alert alert-ok">🎯 5 項核心證物已全數收進卷宗！可前往「② 詢問證人」或「③ 時間線推理」。</div>`
             }
           </div>`;
@@ -827,11 +1696,11 @@
             <div class="alert alert-warn">🕯️ <b>霧港館怪談</b>：每逢閉館熄燈，工作人員都說畫框玻璃裡會多出一個人影。王冠宇的筆記比今晚早了三天；那究竟是鬼影、倒影，還是有人留下的暗號？</div>
             <div class="alert alert-info" style="margin-bottom:0;">
               🗺️ <b>館內三層樓 6 大探索區域</b>：<br/>
-              • <b>🏛️ 2F B 展廳</b>：主牆畫框（側光角度＋紫外線顯影）<br/>
-              • <b>🕯️ 2F 策展人辦公室</b>：拍賣清冊與三輪黃銅密碼箱（R-0-7）<br/>
-              • <b>🛡️ 1F 保全中控區</b>：門禁密碼鎖（1842）與警報分區開關<br/>
-              • <b>📦 1F 西側裝卸區</b>：可滑動掀開複寫聯的出庫單<br/>
-              • <b>🧹 B1 地下器材室</b>：清潔推車與雙頁勤務簿速寫<br/>
+              • <b>🏛️ 2F B 展廳</b>：主牆畫框（金色斜射側光＋UV 紫光掃描）<br/>
+              • <b>🕯️ 2F 策展人辦公室</b>：3D 翻頁拍賣目錄與三輪黃銅密碼箱（R-0-7）<br/>
+              • <b>🛡️ 1F 保全中控區</b>：CRT 門禁密碼鎖（1842）與警報撥動開關<br/>
+              • <b>📦 1F 西側裝卸區</b>：可捲角掀開複寫聯的出庫單<br/>
+              • <b>🧹 B1 地下器材室</b>：清潔推車與 3D 立體翻頁勤務簿<br/>
               • <b>🎨 B1 修復室 R-07</b>：仿作畫架顯微鏡找碴與底片燈箱
             </div>
           </div>
@@ -875,6 +1744,7 @@
             <button type="button" class="hud-btn" data-open-target="MAP">🗺️ 館內地圖</button>
             <button type="button" class="hud-btn" data-open-target="BAG">📓 卷宗 (${state.viewedEvidence.length}/${GD.EVIDENCE.length})</button>
             <button type="button" class="hud-btn ${state.radarOn ? "active-toggle" : ""}" data-toggle-radar="1">💡 提示光圈</button>
+            ${soundToggleBtnHtml("hud-btn")}
             <button type="button" class="hud-btn primary ${state.fullscreen ? "active-toggle" : ""}" data-toggle-fs="1">${state.fullscreen ? "🖥️ 退出全螢幕" : "🖥️ 全螢幕"}</button>
           </div>
         </div>
@@ -884,12 +1754,14 @@
         </div>
         <div class="scene-canvas">
           <div class="scene-toast"></div>
-          <div class="scene-stage">
+          <div class="scene-stage ${justArrivedScene ? "just-arrived" : ""}">
             <img class="scene-bg" src="${esc(curSc.image)}" alt="${esc(curSc.name)}" />
+            ${buildDustMotesHtml(curSc.id)}
             <div class="scene-flashlight"></div>
             ${roomEvSpots}
             ${roomObjSpots}
-            <div class="scene-bottom-hint">${curSc.icon} <b>${esc(curSc.name)}</b>｜點擊發光熱區解開互動機關或採證；右上角可開「🗺️ 館內地圖」</div>
+            ${roomPortals}
+            <div class="scene-bottom-hint">${curSc.icon} <b>${esc(curSc.name)}</b>｜點擊發光熱區解開機關，或點擊門口／樓梯熱區步行移動</div>
           </div>
         </div>
       </div>
@@ -1340,6 +2212,7 @@
             <span class="case-badge">🖼️ 失竊畫作：《${esc(GD.ARTWORK_NAME)}》</span>
             <span class="case-badge">🗺️ 已解鎖區域：${state.unlockedScenes.length} / ${GD.SCENES.length}</span>
             <span class="case-badge">🧑‍🔧 委託人：王冠宇</span>
+            ${soundToggleBtnHtml("btn btn-sm")}
             <button class="btn btn-sm" data-reset-game="1">🔄 重玩／重看序章</button>
           </div>
         </section>
@@ -1360,28 +2233,64 @@
   }
 
   function bindEvents() {
+    // Top-right sound mute toggle
+    document.querySelectorAll("[data-toggle-sound]").forEach((b) => {
+      b.onclick = () => {
+        state.soundMuted = !state.soundMuted;
+        if (!state.soundMuted) SFX.playUiTick();
+        saveState();
+        render();
+      };
+    });
+
     // Prologue controls
     document.querySelectorAll("[data-prologue-jump]").forEach((b) => {
       b.onclick = () => {
+        SFX.playPageFlip(false);
         state.introPanelIndex = Number(b.getAttribute("data-prologue-jump"));
         saveState();
         render();
       };
     });
     const prevBtn = document.querySelector("[data-prologue-prev]");
-    if (prevBtn) prevBtn.onclick = () => { state.introPanelIndex = Math.max(0, state.introPanelIndex - 1); saveState(); render(); };
+    if (prevBtn)
+      prevBtn.onclick = () => {
+        SFX.playPageFlip(false);
+        state.introPanelIndex = Math.max(0, state.introPanelIndex - 1);
+        saveState();
+        render();
+      };
     const nextBtn = document.querySelector("[data-prologue-next]");
-    if (nextBtn) nextBtn.onclick = () => { state.introPanelIndex += 1; saveState(); render(); };
+    if (nextBtn)
+      nextBtn.onclick = () => {
+        SFX.playPageFlip(false);
+        state.introPanelIndex += 1;
+        saveState();
+        render();
+      };
     document.querySelectorAll("[data-prologue-skip], [data-prologue-start]").forEach((b) => {
-      b.onclick = () => { state.introCompleted = true; saveState(); render(); };
+      b.onclick = () => {
+        SFX.playFootsteps(3, "marble");
+        state.introCompleted = true;
+        justArrivedScene = true;
+        saveState();
+        render();
+        setTimeout(() => {
+          justArrivedScene = false;
+        }, 700);
+      };
     });
 
     // Global nav & reset
     document.querySelectorAll("[data-reset-game]").forEach((b) => {
-      b.onclick = () => resetGame(true);
+      b.onclick = () => {
+        SFX.playUiTick();
+        resetGame(true);
+      };
     });
     document.querySelectorAll("[data-nav-page]").forEach((b) => {
       b.onclick = () => {
+        SFX.playUiTick();
         state.activePage = b.getAttribute("data-nav-page");
         state.fullscreen = false;
         state.activeOverlay = null;
@@ -1403,53 +2312,95 @@
     document.querySelectorAll("[data-jump-scene]").forEach((btn) => {
       btn.onclick = () => {
         const scId = btn.getAttribute("data-jump-scene");
-        if (!state.unlockedScenes.includes(scId)) {
-          showToast(SCENES_BY_ID[scId]?.unlock_hint || "🔒 尚未解鎖此區域");
-          return;
-        }
-        state.currentScene = scId;
-        state.activeOverlay = null;
-        saveState();
-        render();
+        navigateToScene(scId, null);
+      };
+    });
+
+    document.querySelectorAll("[data-portal-idx]").forEach((btn) => {
+      btn.onclick = () => {
+        const pIdx = Number(btn.getAttribute("data-portal-idx"));
+        const portal = (SCENE_PORTALS[state.currentScene] || [])[pIdx];
+        if (!portal) return;
+        navigateToScene(portal.to, portal);
       };
     });
 
     document.querySelectorAll("[data-open-target]").forEach((btn) => {
       btn.onclick = () => {
+        const target = btn.getAttribute("data-open-target");
         const sc = btn.getAttribute("data-target-scene");
         if (sc && state.unlockedScenes.includes(sc)) state.currentScene = sc;
-        state.activeOverlay = btn.getAttribute("data-open-target");
+        state.activeOverlay = target;
+        if (target === "E1") SFX.playBootChime();
+        else if (target === "E3" || target === "OBJ_AUCTION_DRAFT") SFX.playPageFlip(true);
+        else SFX.playUiTick();
         saveState();
         render();
+        if (target === "E1") {
+          startTerminalTypewriter(
+            state.e1Unlocked
+              ? ["> CODE 1842 ACCEPTED", "> GALLERY-B CCTV LOGS DECRYPTED [OK]"]
+              : [
+                  "> BOOTING MUSEUM_SEC_OS v3.4...",
+                  "> LINK: 2F GALLERY-B CCTV [ONLINE]",
+                  "> AUTH REQUIRED: ENTER 4-DIGIT TIME CODE",
+                ]
+          );
+        }
       };
     });
 
     document.querySelectorAll("[data-close-overlay]").forEach((btn) => {
-      btn.onclick = () => { state.activeOverlay = null; saveState(); render(); };
+      btn.onclick = () => {
+        SFX.playUiTick();
+        clearInterval(typewriterTimer);
+        state.activeOverlay = null;
+        saveState();
+        render();
+      };
     });
     const backdrop = document.querySelector("[data-overlay-backdrop]");
     if (backdrop) {
       backdrop.onclick = (e) => {
-        if (e.target === backdrop) { state.activeOverlay = null; saveState(); render(); }
+        if (e.target === backdrop) {
+          SFX.playUiTick();
+          clearInterval(typewriterTimer);
+          state.activeOverlay = null;
+          saveState();
+          render();
+        }
       };
     }
 
     const radarBtn = document.querySelector("[data-toggle-radar]");
-    if (radarBtn) radarBtn.onclick = () => { state.radarOn = !state.radarOn; saveState(); render(); };
+    if (radarBtn)
+      radarBtn.onclick = () => {
+        SFX.playUiTick();
+        state.radarOn = !state.radarOn;
+        saveState();
+        render();
+      };
 
     const fsBtn = document.querySelector("[data-toggle-fs]");
     if (fsBtn) {
       fsBtn.onclick = () => {
+        SFX.playUiTick();
         state.fullscreen = !state.fullscreen;
         render();
       };
     }
 
     document.querySelectorAll("[data-info-tab]").forEach((b) => {
-      b.onclick = () => { state.activeInfoTab = b.getAttribute("data-info-tab"); saveState(); render(); };
+      b.onclick = () => {
+        SFX.playUiTick();
+        state.activeInfoTab = b.getAttribute("data-info-tab");
+        saveState();
+        render();
+      };
     });
     document.querySelectorAll("[data-ask-witness]").forEach((b) => {
       b.onclick = () => {
+        SFX.playUiTick();
         state.activeWitness = b.getAttribute("data-ask-witness");
         state.activePage = "詢問證人";
         saveState();
@@ -1460,76 +2411,211 @@
     // Interactive Puzzles inside overlays
     document.querySelectorAll("[data-toggle-hint]").forEach((b) => {
       b.onclick = () => {
+        SFX.playUiTick();
         const el = document.querySelector(b.getAttribute("data-toggle-hint"));
         if (el) el.classList.toggle("show");
       };
     });
 
+    // 3D Book cover open / page flip / cover close
+    document.querySelectorAll("[data-book-open]").forEach((b) => {
+      b.onclick = () => {
+        const bookId = b.getAttribute("data-book-open");
+        if (b.classList.contains("is-opening")) return;
+        SFX.playPageFlip(true);
+        b.classList.add("is-opening");
+        setTimeout(() => {
+          if (bookId === "e3") {
+            state.e3BookOpen = true;
+            state.e3BookSpread = 0;
+          } else {
+            state.auctionBookOpen = true;
+            state.auctionBookSpread = 0;
+          }
+          saveState();
+          render();
+        }, 390);
+      };
+    });
+
+    document.querySelectorAll("[data-book-turn]").forEach((b) => {
+      b.onclick = () => {
+        const [bookId, dir] = b.getAttribute("data-book-turn").split(",");
+        const delta = dir === "next" ? 1 : -1;
+        if (bookId === "e3") {
+          const next = Math.max(0, Math.min(1, state.e3BookSpread + delta));
+          if (next === state.e3BookSpread) return;
+          state.e3BookSpread = next;
+        } else {
+          const next = Math.max(0, Math.min(1, state.auctionBookSpread + delta));
+          if (next === state.auctionBookSpread) return;
+          state.auctionBookSpread = next;
+        }
+        SFX.playPageFlip(false);
+        lastBookFlip = { bookId, dir };
+        saveState();
+        render();
+        setTimeout(() => {
+          lastBookFlip = null;
+        }, 520);
+      };
+    });
+
+    document.querySelectorAll("[data-book-close]").forEach((b) => {
+      b.onclick = () => {
+        const bookId = b.getAttribute("data-book-close");
+        SFX.playPageFlip(true);
+        if (bookId === "e3") state.e3BookOpen = false;
+        else state.auctionBookOpen = false;
+        saveState();
+        render();
+      };
+    });
+
+    // E5 Golden Diagonal Beam + UV Scanline Reveal
     const angleSlider = document.querySelector('[data-gadget="light-angle"]');
     if (angleSlider) {
+      wasAngleAligned = state.lightAngle >= 42 && state.lightAngle <= 56;
       angleSlider.oninput = (e) => {
         state.lightAngle = Number(e.target.value);
         const angleHit = state.lightAngle >= 42 && state.lightAngle <= 56;
+        const shadowOp = Math.max(0, 1 - Math.abs(state.lightAngle - 48) / 24);
+        const beamX = ((state.lightAngle / 90) * 76 - 10).toFixed(1);
+        const beamRot = (state.lightAngle - 48).toFixed(1);
+        const beamOp = (0.35 + shadowOp * 0.55).toFixed(2);
+
         const valEl = document.querySelector(".angle-val-display");
         if (valEl) valEl.textContent = angleHit ? `${state.lightAngle}° ✅ 第六個人影浮現！` : `${state.lightAngle}°（調至 18:42 斜射光角）`;
         const shadow = document.querySelector(".uv-side-shadow");
-        if (shadow) shadow.style.opacity = Math.max(0, 1 - Math.abs(state.lightAngle - 48) / 24).toFixed(2);
+        if (shadow) shadow.style.opacity = shadowOp.toFixed(2);
+        const beam = document.querySelector(".golden-light-beam");
+        if (beam) {
+          beam.style.transform = `translateX(${beamX}%) rotate(${beamRot}deg)`;
+          beam.style.opacity = state.uvOn ? "0.14" : beamOp;
+        }
+        const vp = document.querySelector(".uv-viewport");
+        if (vp) vp.classList.toggle("angle-aligned", angleHit);
+
+        if (angleHit && !wasAngleAligned) {
+          SFX.playGhostShimmer();
+        } else {
+          SFX.playLightTick();
+        }
+        wasAngleAligned = angleHit;
+
         const note = document.querySelector(".uv-status-note");
         if (note && !state.uvOn) {
           note.innerHTML = angleHit
-            ? "🟡 <b>側光角度對齊（48°）！</b>斜光照在玻璃上浮出第六道人影。再按上方「紫外線燈」檢視清漆底下吧！"
-            : "⚪ 請先拖動上方「夜間側光角度拉桿」重現 18:42 玻璃人影，再開啟紫外線燈照射！";
+            ? "🟡 <b>側光角度對齊（48°）！</b>金色斜射光束在玻璃上浮出第六道人影。再按上方「紫外線燈」進行紫光掃描顯影！"
+            : "⚪ 請先拖動上方「夜間側光角度拉桿」滑動金色光束重現 18:42 玻璃人影，再開啟紫外線燈照射！";
         }
         saveState();
       };
     }
 
     const uvBtn = document.querySelector('[data-gadget="uv-toggle"]');
-    if (uvBtn) uvBtn.onclick = () => { state.uvOn = !state.uvOn; saveState(); render(); };
+    if (uvBtn)
+      uvBtn.onclick = () => {
+        state.uvOn = !state.uvOn;
+        SFX.playUvHum(state.uvOn);
+        saveState();
+        render();
+      };
+
+    // E4 Curled-Corner Paper Peel
+    function updatePeelDom(pct) {
+      const topSheet = document.querySelector(".peel-top-sheet");
+      if (topSheet) topSheet.style.clipPath = `inset(0 ${pct}% 0 0)`;
+      const flap = document.querySelector(".peel-curl-flap");
+      if (flap) {
+        const curlW = pct <= 2 || pct >= 99 ? 0 : Math.min(44, Math.max(14, Math.sin((pct / 100) * Math.PI) * 46));
+        const curlSkew = ((pct / 100) * -4.5).toFixed(1);
+        flap.style.right = `${pct}%`;
+        flap.style.width = `${curlW.toFixed(1)}px`;
+        flap.style.opacity = curlW > 0 ? "1" : "0";
+        flap.style.transform = `skewY(${curlSkew}deg)`;
+      }
+      const valEl = document.querySelector(".peel-val-display");
+      if (valEl) valEl.textContent = pct >= 65 ? `已掀開 ${pct}% ✅ 露出「林月琴舊畫室」！` : `已掀開 ${pct}%（向右拖動捲開紙角）`;
+    }
 
     const peelSlider = document.querySelector('[data-gadget="carbon-peel"]');
     if (peelSlider) {
       peelSlider.oninput = (e) => {
         state.peelPct = Number(e.target.value);
-        const topSheet = document.querySelector(".peel-top-sheet");
-        if (topSheet) topSheet.style.transform = `translateX(-${state.peelPct}%)`;
-        const valEl = document.querySelector(".peel-val-display");
-        if (valEl) valEl.textContent = state.peelPct >= 65 ? `已掀開 ${state.peelPct}% ✅ 露出「林月琴舊畫室」！` : `已掀開 ${state.peelPct}%（向右拖動）`;
+        updatePeelDom(state.peelPct);
+        SFX.playPaperPeel();
         saveState();
       };
     }
-
-    document.querySelectorAll("[data-nb-page]").forEach((b) => {
-      b.onclick = () => { state.nbPage = b.getAttribute("data-nb-page"); saveState(); render(); };
+    document.querySelectorAll("[data-peel-preset]").forEach((b) => {
+      b.onclick = () => {
+        const target = Number(b.getAttribute("data-peel-preset"));
+        SFX.playPageFlip(false);
+        const start = state.peelPct;
+        const steps = 14;
+        let step = 0;
+        const anim = setInterval(() => {
+          step += 1;
+          const pct = Math.round(start + ((target - start) * step) / steps);
+          state.peelPct = pct;
+          const sl = document.querySelector('[data-gadget="carbon-peel"]');
+          if (sl) sl.value = String(pct);
+          updatePeelDom(pct);
+          if (step >= steps) {
+            clearInterval(anim);
+            saveState();
+          }
+        }, 20);
+      };
     });
 
+    // E1 Keypad: beep + wrong-code shake + unlock typewriter
     document.querySelectorAll("[data-kp-key]").forEach((b) => {
       b.onclick = () => {
         if (state.e1Unlocked) return;
         const k = b.getAttribute("data-kp-key");
+        SFX.playKeyBeep(k);
         state.kpError = "";
+        let unlockedNow = false;
         if (k === "CLR") {
           state.kpCode = "";
         } else if (k === "ENT") {
           if (state.kpCode === "1842") {
             state.e1Unlocked = true;
+            unlockedNow = true;
+            SFX.playUnlockChime();
           } else {
             state.kpCode = "";
-            state.kpError = "密碼錯誤 · 請重試";
+            state.kpError = "ACCESS DENIED · 密碼錯誤";
+            e1ShakeActive = true;
+            SFX.playErrorBuzz();
+            setTimeout(() => {
+              e1ShakeActive = false;
+            }, 480);
           }
         } else if (state.kpCode.length < 4) {
           state.kpCode += k;
         }
         saveState();
         render();
+        if (unlockedNow) {
+          startTerminalTypewriter([
+            "> CODE 1842 ACCEPTED",
+            "> DECRYPTING 2F GALLERY-B CCTV...",
+            "> ACCESS GRANTED // LOGS READY [OK]",
+          ]);
+        }
       };
     });
 
+    // E2 Alarm Rocker Switches + Scanning Warning Beacons
     document.querySelectorAll("[data-zone-sw]").forEach((b) => {
       b.onclick = () => {
-        if (state.e2Unlocked) return;
+        if (state.e2Unlocked || e2Scanning) return;
         const z = b.getAttribute("data-zone-sw");
         state.e2Zones[z] = !state.e2Zones[z];
+        SFX.playSwitchClick(state.e2Zones[z]);
         state.e2Error = "";
         saveState();
         render();
@@ -1538,27 +2624,55 @@
     const scanBtn = document.querySelector('[data-action="e2-scan"]');
     if (scanBtn) {
       scanBtn.onclick = () => {
-        if (state.e2Zones["2F-B"] && !state.e2Zones["2F-A"] && !state.e2Zones["1F-W"]) {
-          state.e2Unlocked = true;
-          state.e2Error = "";
-        } else {
-          state.e2Error = "分區不符：請只開啟「2F B 展廳」";
-        }
-        saveState();
+        if (e2Scanning || state.e2Unlocked) return;
+        e2Scanning = true;
+        state.e2Error = "";
+        SFX.playRadarScan();
         render();
+        setTimeout(() => {
+          e2Scanning = false;
+          if (state.e2Zones["2F-B"] && !state.e2Zones["2F-A"] && !state.e2Zones["1F-W"]) {
+            state.e2Unlocked = true;
+            state.e2Error = "";
+            SFX.playUnlockChime();
+          } else {
+            state.e2Error = "分區不符：請只撥開「ZONE 2F-B」";
+            e2ShakeActive = true;
+            SFX.playErrorBuzz();
+            setTimeout(() => {
+              e2ShakeActive = false;
+            }, 480);
+          }
+          saveState();
+          render();
+        }, 580);
       };
     }
 
+    // R-07 Spot-the-Difference
     document.querySelectorAll("[data-diff-spot]").forEach((b) => {
       b.onclick = () => {
-        state.diffFound[b.getAttribute("data-diff-spot")] = true;
+        const key = b.getAttribute("data-diff-spot");
+        const had = Boolean(state.diffFound[key]);
+        state.diffFound[key] = true;
+        const cnt = ["d1", "d2", "d3"].filter((k) => state.diffFound[k]).length;
+        if (!had) {
+          if (cnt === 3) SFX.playUnlockChime();
+          else SFX.playSpotFound();
+        }
         saveState();
         render();
       };
     });
     const diffHintBtn = document.querySelector('[data-action="diff-hint"]');
-    if (diffHintBtn) diffHintBtn.onclick = () => { state.diffHintOn = !state.diffHintOn; render(); };
+    if (diffHintBtn)
+      diffHintBtn.onclick = () => {
+        SFX.playUiTick();
+        state.diffHintOn = !state.diffHintOn;
+        render();
+      };
 
+    // Brass Lockbox: Ratchet Tumbler Wheels & 3D Lid Opening
     document.querySelectorAll("[data-dial-step]").forEach((b) => {
       b.onclick = () => {
         if (state.brassUnlocked) return;
@@ -1566,19 +2680,31 @@
         const len = WHEEL_SETS[idx].length;
         state.dialIdx[idx] = (state.dialIdx[idx] + delta + len) % len;
         state.dialError = "";
+        lastDialAnim = { idx, dir: delta > 0 ? "up" : "down" };
+        SFX.playDialClick();
         saveState();
         render();
+        setTimeout(() => {
+          lastDialAnim = null;
+        }, 250);
       };
     });
     const brassBtn = document.querySelector('[data-action="brass-open"]');
     if (brassBtn) {
       brassBtn.onclick = () => {
+        if (state.brassUnlocked) return;
         const code = [0, 1, 2].map((i) => WHEEL_SETS[i][state.dialIdx[i]]).join("");
         if (code === "R07") {
           state.brassUnlocked = true;
           state.dialError = "";
+          SFX.playBoxLatchOpen();
         } else {
-          state.dialError = "鎖芯未對齊！想想仿作編號";
+          state.dialError = "喀噠…鎖芯未對齊！想想仿作編號";
+          brassShakeActive = true;
+          SFX.playErrorBuzz();
+          setTimeout(() => {
+            brassShakeActive = false;
+          }, 480);
         }
         saveState();
         render();
@@ -1590,6 +2716,7 @@
         if (b.getAttribute("data-is-clue") === "1") {
           collectTarget(b.getAttribute("data-row-ev"));
         } else {
+          SFX.playUiTick();
           b.classList.add("normal-checked");
         }
       };
@@ -1600,10 +2727,16 @@
 
     // Stage 2 Witness
     document.querySelectorAll("[data-select-witness]").forEach((b) => {
-      b.onclick = () => { state.activeWitness = b.getAttribute("data-select-witness"); saveState(); render(); };
+      b.onclick = () => {
+        SFX.playUiTick();
+        state.activeWitness = b.getAttribute("data-select-witness");
+        saveState();
+        render();
+      };
     });
     document.querySelectorAll("[data-quick-q]").forEach((b) => {
       b.onclick = () => {
+        SFX.playUiTick();
         const qIdx = Number(b.getAttribute("data-quick-q"));
         const qText = GD.WITNESSES[state.activeWitness].sample_questions[qIdx][0];
         submitWitnessQuestion(state.activeWitness, qText, false);
@@ -1615,19 +2748,34 @@
         e.preventDefault();
         const input = document.getElementById("witnessInput");
         const val = input ? input.value : "";
-        if (val.trim()) submitWitnessQuestion(state.activeWitness, val, true);
+        if (val.trim()) {
+          SFX.playUiTick();
+          submitWitnessQuestion(state.activeWitness, val, true);
+        }
       };
     }
 
     // Stage 3 Timeline
     document.querySelectorAll("[data-slot-time]").forEach((sel) => {
-      sel.onchange = () => { state.timelineSlots[sel.getAttribute("data-slot-time")] = sel.value; saveState(); };
+      sel.onchange = () => {
+        SFX.playUiTick();
+        state.timelineSlots[sel.getAttribute("data-slot-time")] = sel.value;
+        saveState();
+      };
     });
     document.querySelectorAll('input[name="scope_e4"]').forEach((r) => {
-      r.onchange = () => { state.scopeE4Choice = Number(r.value); saveState(); };
+      r.onchange = () => {
+        SFX.playUiTick();
+        state.scopeE4Choice = Number(r.value);
+        saveState();
+      };
     });
     document.querySelectorAll('input[name="scope_e3"]').forEach((r) => {
-      r.onchange = () => { state.scopeE3Choice = Number(r.value); saveState(); };
+      r.onchange = () => {
+        SFX.playUiTick();
+        state.scopeE3Choice = Number(r.value);
+        saveState();
+      };
     });
     const tlForm = document.getElementById("timelineForm");
     if (tlForm) {
@@ -1650,9 +2798,13 @@
         else if (e3Checked && !state.e3ScopeSolved) state.e3ScopeAttempts += 1;
 
         state.timelineFeedback = { wrongTimes, e4Correct, e3Correct, e4Checked, e3Checked };
-        if (wrongTimes.length || (e4Checked && !e4Correct) || (e3Checked && !e3Correct)) {
+        const hasError = wrongTimes.length || (e4Checked && !e4Correct) || (e3Checked && !e3Correct);
+        if (hasError) {
+          SFX.playErrorBuzz();
           const attempts = Math.max(state.timelineAttempts, state.e4ScopeAttempts, state.e3ScopeAttempts);
           state.hintLevel = Math.max(state.hintLevel, Math.min(attempts, 3));
+        } else {
+          SFX.playUnlockChime();
         }
         saveState();
         render();
@@ -1660,14 +2812,31 @@
     }
     const tlHintBtn = document.querySelector("[data-timeline-hint]");
     if (tlHintBtn) {
-      tlHintBtn.onclick = () => { state.hintLevel = Math.min(3, state.hintLevel + 1); saveState(); render(); };
+      tlHintBtn.onclick = () => {
+        SFX.playUiTick();
+        state.hintLevel = Math.min(3, state.hintLevel + 1);
+        saveState();
+        render();
+      };
     }
 
     // Stage 4 Courtroom
     const cStmt = document.getElementById("courtStmtSelect");
-    if (cStmt) cStmt.onchange = () => { state.courtStatement = cStmt.value; saveState(); render(); };
+    if (cStmt)
+      cStmt.onchange = () => {
+        SFX.playUiTick();
+        state.courtStatement = cStmt.value;
+        saveState();
+        render();
+      };
     const cEv = document.getElementById("courtEvSelect");
-    if (cEv) cEv.onchange = () => { state.courtEvidence = cEv.value; saveState(); render(); };
+    if (cEv)
+      cEv.onchange = () => {
+        SFX.playUiTick();
+        state.courtEvidence = cEv.value;
+        saveState();
+        render();
+      };
     const objBtn = document.getElementById("objectionBtn");
     if (objBtn) {
       objBtn.onclick = () => {
@@ -1676,12 +2845,14 @@
         if (challenge && !state.foundClues.includes(challenge.clue_id)) {
           state.foundClues.push(challenge.clue_id);
           state.lastCourtResult = { success: true, summary: challenge.summary, text: challenge.fallback_reaction };
+          SFX.playObjection(true);
         } else if (challenge) {
           state.lastCourtResult = {
             success: true,
             summary: challenge.summary,
             text: "這項矛盾已經成立並寫入法庭筆錄，請繼續找出另一項矛盾！",
           };
+          SFX.playUiTick();
         } else {
           state.wrongChallenges = Math.min(state.wrongChallenges + 1, GD.MAX_COURT_HINT_LEVEL);
           const hint =
@@ -1695,6 +2866,7 @@
             summary: "矛盾不成立",
             text: "這組「證詞」與「證物」無法構成直接矛盾。" + hint,
           };
+          SFX.playObjection(false);
         }
         saveState();
         render();
@@ -1703,16 +2875,27 @@
 
     // Stage 5 Verdict
     document.querySelectorAll('input[name="final_suspect"]').forEach((r) => {
-      r.onchange = () => { state.finalSuspect = r.value; state.verdictWarning = ""; saveState(); };
+      r.onchange = () => {
+        SFX.playUiTick();
+        state.finalSuspect = r.value;
+        state.verdictWarning = "";
+        saveState();
+      };
     });
     document.querySelectorAll('input[name="final_reason"]').forEach((r) => {
-      r.onchange = () => { state.finalReason = r.value; state.verdictWarning = ""; saveState(); };
+      r.onchange = () => {
+        SFX.playUiTick();
+        state.finalReason = r.value;
+        state.verdictWarning = "";
+        saveState();
+      };
     });
     const vForm = document.getElementById("verdictForm");
     if (vForm) {
       vForm.onsubmit = (e) => {
         e.preventDefault();
         if (!state.finalSuspect || !state.finalReason) {
+          SFX.playErrorBuzz();
           state.verdictWarning = "請先選出你要指控的人，以及支持指控的證據鏈。";
           render();
           return;
@@ -1725,6 +2908,7 @@
           state.e3ScopeSolved;
         const ok = state.finalSuspect === GD.CULPRIT_ID && state.finalReason === GD.CORRECT_REASON_ID && complete;
         if (ok) {
+          SFX.playObjection(true);
           state.ending = {
             success: true,
             title: "逆轉成功！第六個人影的真相",
@@ -1737,6 +2921,7 @@
               "林書妍承認，她把原畫換下、留下 R-07 仿作，再將原畫送到外祖母林月琴的舊畫室；她想在沈景川的名字再次蓋過外祖母署名前保住證據。她交出藏畫位置，法院判王冠宇無罪，並暫停拍賣、下令調查館藏來源。",
           };
         } else {
+          SFX.playObjection(false);
           let body = "你找到了正確的嫌疑人，卻沒有選出能串起全案的正確證據鏈；法官裁定證據不足。";
           if (!complete) body = "卷宗仍有關鍵證物未讀或矛盾尚未在法庭上揭穿，法官認為你的結論程序與證據不足。";
           else if (state.finalSuspect !== GD.CULPRIT_ID) body = "你的指控與門禁紀錄、警報旁路及拍賣預展出庫紀錄無法互相印證；法官駁回你的結論。";

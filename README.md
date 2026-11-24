@@ -60,14 +60,22 @@ streamlit run app.py
 
 ## ⚡ Vercel 極速不休眠部署（推薦）
 
-本專案同時內建純網頁極速版（`index.html`、`web/`、`api/ask.js`、`vercel.json`），部署到 **Vercel** 可享免費全球 CDN、**永遠不休眠、打開不到 1 秒、所有場景與機關 0 延遲操作**：
+本專案同時內建純網頁極速版（`index.html`、`web/`、`api/ask.js`、`vercel.json`），部署到 **Vercel** 可享免費全球 CDN、**永遠不休眠、打開不到 1 秒、所有場景與機關 0 延遲操作**，並搭載《紙嫁衣》風格全場景互動動畫與 Web Audio 合成音效（右上可隨時開關靜音）：
+
+- **第一人稱走路過場與方向熱區**：6 大場景皆含門口／樓梯方向熱區與微光塵埃氛圍，切換房間會播放第一人稱鏡頭推進＋步態晃動＋暗角字幕＋腳步聲；若 `assets/videos/` 放有對應 `.mp4`（如 `scene_museum.mp4`、`walk_gallery_to_security.mp4`），會自動優先播放影片。
+- **3D 實體翻頁書**：B1 清潔勤務簿（E3）與策展人辦公室拍賣預展目錄皆可點封面 3D 翻開、左右翻頁並附翻紙聲，以清晰繁體中文呈現日記、紅筆 `18:42`、`R-07` 借調便條與手繪速寫。
+- **全機關視覺與音效**：畫框（E5）斜射金色光束滑動＋UV 紫光掃描線顯影、中控電腦（E1）CRT 開機掃描線＋打字機字幕＋按鍵嗶聲＋錯碼震動、警報面板（E2）撥動開關＋掃描警示燈、出庫單（E4）捲角掀紙動畫、黃銅木匣喀噠轉輪＋3D 開蓋動畫。
+- **Colab A100 圖生影片工作流**：專案內附 [`colab/generate_museum_videos.ipynb`](colab/generate_museum_videos.ipynb)，可直接使用開源圖生影片模型（`LTX-Video` / `Wan2.1-I2V-14B-480P`）讀取 `assets/scene_*.jpg` 生成 2～3 秒美術館過場 `.mp4` 並自動存至 Google Drive（`MyDrive/Final-Project-Videos/`）。
+
+部署步驟：
 
 1. 使用 GitHub 帳號登入 [Vercel](https://vercel.com/) → 點選 **Add New… → Project**。
-2. 選擇 `erickuo0707/Final-Project`，Framework Preset 選 **Other**（不需要填 Build Command，Output Directory 留空）。
+2. 選擇 `erickuo0707/Final-Project`，Framework Preset 選 **Other**（已透過 `vercel.json` 自動輸出靜態 `dist/`）。
 3. （選填）若想啟用 Gemini 自由提問對話，在 **Environment Variables** 新增 `GEMINI_API_KEY`；不設定也能以固定備援台詞完整通關。
 4. 點選 **Deploy**，約 30 秒即可獲得永久免費的 `*.vercel.app` 網址。
 
 ## 專案狀態
 
-已完成視覺化互動版 MVP（同時支援 **Vercel 秒開不休眠純網頁版** 與 **Streamlit 版**）：包含「霧港館的第六個人」懸疑案件、四格漫畫序章、19 張專屬場景／漫畫／立繪／證物插圖、三層樓 6 區域互動解謎探索與 6 大機關、五階段引導列、暗金色時間線推理白板、逐步提示、快捷追問、固定規則的法庭攻防，以及可選的 Gemini 對話。案件設定見 [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md)，AI 程式助理規則見 [`AGENTS.md`](AGENTS.md)。
+已完成視覺化互動版 MVP（同時支援 **Vercel 秒開不休眠純網頁版** 與 **Streamlit 版**）：包含「霧港館的第六個人」懸疑案件、四格漫畫序章、19 張專屬場景／漫畫／立繪／證物插圖、三層樓 6 區域《紙嫁衣》風格互動解謎探索（第一人稱走路過場、門口／樓梯熱區、微光塵埃、3D 翻頁實體書、Web Audio 合成音效與 6 大動態機關）、Colab A100 圖生影片 Notebook、五階段引導列、暗金色時間線推理白板、逐步提示、快捷追問、固定規則的法庭攻防，以及可選的 Gemini 對話。案件設定見 [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md)，AI 程式助理規則見 [`AGENTS.md`](AGENTS.md)。
+
 

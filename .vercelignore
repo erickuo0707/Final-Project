@@ -7,5 +7,6 @@ requirements.txt
 docs/
 AGENTS.md
 README.md
+colab/
 __pycache__/
 *.pyc
